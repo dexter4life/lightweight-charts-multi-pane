@@ -1,10 +1,10 @@
-import { DeepPartial } from '../helpers/strict-type-checks';
+import { DeepPartial } from "../helpers/strict-type-checks";
 
-import { ChartOptionsImpl } from '../model/chart-model';
-import { BarData, HistogramData, LineData, WhitespaceData } from '../model/data-consumer';
-import { Time } from '../model/horz-scale-behavior-time/types';
-import { CustomData, ICustomSeriesPaneView } from '../model/icustom-series';
-import { Point } from '../model/point';
+import { ChartOptionsImpl } from "../model/chart-model";
+import { BarData, HistogramData, LineData, WhitespaceData } from "../model/data-consumer";
+import { Time } from "../model/horz-scale-behavior-time/types";
+import { CustomData, ICustomSeriesPaneView } from "../model/icustom-series";
+import { Point } from "../model/point";
 import {
 	AreaSeriesPartialOptions,
 	BarSeriesPartialOptions,
@@ -15,13 +15,13 @@ import {
 	LineSeriesPartialOptions,
 	SeriesPartialOptions,
 	SeriesType,
-} from '../model/series-options';
-import { Logical } from '../model/time-data';
-import { TouchMouseEventData } from '../model/touch-mouse-event-data';
+} from "../model/series-options";
+import { Logical } from "../model/time-data";
+import { TouchMouseEventData } from "../model/touch-mouse-event-data";
 
-import { IPriceScaleApi } from './iprice-scale-api';
-import { ISeriesApi } from './iseries-api';
-import { ITimeScaleApi } from './itime-scale-api';
+import { IPriceScaleApi } from "./iprice-scale-api";
+import { ISeriesApi } from "./iseries-api";
+import { ITimeScaleApi } from "./itime-scale-api";
 
 /**
  * Dimensions of the Chart Pane
@@ -64,7 +64,13 @@ export interface MouseEventParams<HorzScaleItem = Time> {
 	 * Keys of the map are {@link ISeriesApi} instances. Values are prices.
 	 * Values of the map are original data items
 	 */
-	seriesData: Map<ISeriesApi<SeriesType, HorzScaleItem>, BarData<HorzScaleItem> | LineData<HorzScaleItem> | HistogramData<HorzScaleItem> | CustomData<HorzScaleItem>>;
+	seriesData: Map<
+		ISeriesApi<SeriesType, HorzScaleItem>,
+		| BarData<HorzScaleItem>
+		| LineData<HorzScaleItem>
+		| HistogramData<HorzScaleItem>
+		| CustomData<HorzScaleItem>
+	>;
 	/**
 	 * The {@link ISeriesApi} for the series at the point of the mouse event.
 	 */
@@ -82,7 +88,9 @@ export interface MouseEventParams<HorzScaleItem = Time> {
 /**
  * A custom function use to handle mouse events.
  */
-export type MouseEventHandler<HorzScaleItem> = (param: MouseEventParams<HorzScaleItem>) => void;
+export type MouseEventHandler<HorzScaleItem> = (
+	param: MouseEventParams<HorzScaleItem>,
+) => void;
 
 /**
  * The main interface of a single chart.
@@ -120,11 +128,18 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	addCustomSeries<
 		TData extends CustomData<HorzScaleItem>,
 		TOptions extends CustomSeriesOptions,
-		TPartialOptions extends SeriesPartialOptions<TOptions> = SeriesPartialOptions<TOptions>
+		TPartialOptions extends SeriesPartialOptions<TOptions> =
+			SeriesPartialOptions<TOptions>,
 	>(
 		customPaneView: ICustomSeriesPaneView<HorzScaleItem, TData, TOptions>,
-		customOptions?: SeriesPartialOptions<TOptions>
-	): ISeriesApi<'Custom', HorzScaleItem, TData | WhitespaceData<HorzScaleItem>, TOptions, TPartialOptions>;
+		customOptions?: SeriesPartialOptions<TOptions>,
+	): ISeriesApi<
+		"Custom",
+		HorzScaleItem,
+		TData | WhitespaceData<HorzScaleItem>,
+		TOptions,
+		TPartialOptions
+	>;
 
 	/**
 	 * Creates an area series with specified parameters.
@@ -136,7 +151,9 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	 * const series = chart.addAreaSeries();
 	 * ```
 	 */
-	addAreaSeries(areaOptions?: AreaSeriesPartialOptions): ISeriesApi<'Area', HorzScaleItem>;
+	addAreaSeries(
+		areaOptions?: AreaSeriesPartialOptions,
+	): ISeriesApi<"Area", HorzScaleItem>;
 
 	/**
 	 * Creates a baseline series with specified parameters.
@@ -148,7 +165,9 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	 * const series = chart.addBaselineSeries();
 	 * ```
 	 */
-	addBaselineSeries(baselineOptions?: BaselineSeriesPartialOptions): ISeriesApi<'Baseline', HorzScaleItem>;
+	addBaselineSeries(
+		baselineOptions?: BaselineSeriesPartialOptions,
+	): ISeriesApi<"Baseline", HorzScaleItem>;
 
 	/**
 	 * Creates a bar series with specified parameters.
@@ -160,7 +179,7 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	 * const series = chart.addBarSeries();
 	 * ```
 	 */
-	addBarSeries(barOptions?: BarSeriesPartialOptions): ISeriesApi<'Bar', HorzScaleItem>;
+	addBarSeries(barOptions?: BarSeriesPartialOptions): ISeriesApi<"Bar", HorzScaleItem>;
 
 	/**
 	 * Creates a candlestick series with specified parameters.
@@ -172,7 +191,9 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	 * const series = chart.addCandlestickSeries();
 	 * ```
 	 */
-	addCandlestickSeries(candlestickOptions?: CandlestickSeriesPartialOptions): ISeriesApi<'Candlestick', HorzScaleItem>;
+	addCandlestickSeries(
+		candlestickOptions?: CandlestickSeriesPartialOptions,
+	): ISeriesApi<"Candlestick", HorzScaleItem>;
 
 	/**
 	 * Creates a histogram series with specified parameters.
@@ -184,7 +205,9 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	 * const series = chart.addHistogramSeries();
 	 * ```
 	 */
-	addHistogramSeries(histogramOptions?: HistogramSeriesPartialOptions): ISeriesApi<'Histogram', HorzScaleItem>;
+	addHistogramSeries(
+		histogramOptions?: HistogramSeriesPartialOptions,
+	): ISeriesApi<"Histogram", HorzScaleItem>;
 
 	/**
 	 * Creates a line series with specified parameters.
@@ -196,7 +219,9 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	 * const series = chart.addLineSeries();
 	 * ```
 	 */
-	addLineSeries(lineOptions?: LineSeriesPartialOptions): ISeriesApi<'Line', HorzScaleItem>;
+	addLineSeries(
+		lineOptions?: LineSeriesPartialOptions,
+	): ISeriesApi<"Line", HorzScaleItem>;
 
 	/**
 	 * Removes a series of any type. This is an irreversible operation, you cannot do anything with the series after removing it.
@@ -352,6 +377,64 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	getPaneElements(): HTMLElement[];
 
 	/**
+	 * Get the control container elements for each pane widget.
+	 * Each control container has a data-pane-id attribute that identifies
+	 * the pane data it currently represents. After a swapPane, the
+	 * data-pane-id is updated to reflect the new pane data.
+	 */
+	getControlContainers(): HTMLElement[];
+
+	/**
+	 * Get the pane IDs for each pane widget in order.
+	 * The pane ID is a unique identifier for the pane data object,
+	 * which follows the data when panes are swapped.
+	 */
+	getPaneIds(): number[];
+
+	/**
+	 * Get the index of the main chart pane widget.
+	 * After a swapPane, the main chart may be at a different index.
+	 */
+	getMainPaneIndex(): number;
+
+	/**
+	 * Get the series titles for each pane.
+	 * Returns an array of strings, one per pane widget.
+	 * Each string contains the comma-separated titles of all series in that pane.
+	 */
+	getPaneTitles(): string[];
+
+	/**
+	 * Collapse a sub-pane to a thin bar with only the restore button visible.
+	 * The main chart pane expands to fill the freed space.
+	 *
+	 * @param index - The sub-pane index (0-based, where 0 is the first sub-pane)
+	 */
+	collapsePane(index: number): void;
+
+	/**
+	 * Restore a collapsed sub-pane to its normal size.
+	 *
+	 * @param index - The sub-pane index (0-based, where 0 is the first sub-pane)
+	 */
+	restorePane(index: number): void;
+
+	/**
+	 * Maximize a sub-pane to fill the entire chart area.
+	 * Other panes are hidden.
+	 *
+	 * @param index - The sub-pane index (0-based, where 0 is the first sub-pane)
+	 */
+	maximizePane(index: number): void;
+
+	/**
+	 * Minimize a maximized sub-pane back to its normal size.
+	 *
+	 * @param index - The sub-pane index (0-based, where 0 is the first sub-pane)
+	 */
+	minimizePane(index: number): void;
+
+	/**
 	 * Returns the active state of the `autoSize` option. This can be used to check
 	 * whether the chart is handling resizing automatically with a `ResizeObserver`.
 	 *
@@ -377,7 +460,11 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	 * @param price - The price (vertical coordinate) of the new crosshair position.
 	 * @param horizontalPosition - The horizontal coordinate (time by default) of the new crosshair position.
 	 */
-	setCrosshairPosition(price: number, horizontalPosition: HorzScaleItem, seriesApi: ISeriesApi<SeriesType, HorzScaleItem>): void;
+	setCrosshairPosition(
+		price: number,
+		horizontalPosition: HorzScaleItem,
+		seriesApi: ISeriesApi<SeriesType, HorzScaleItem>,
+	): void;
 
 	/**
 	 * Clear the crosshair position within the chart.
