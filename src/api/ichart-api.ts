@@ -1,25 +1,25 @@
-import { DeepPartial } from '../helpers/strict-type-checks';
+import { DeepPartial } from "../helpers/strict-type-checks";
 
-import { ChartOptionsImpl, HoveredItemType } from '../model/chart-model';
-import { BarData, HistogramData, LineData, WhitespaceData } from '../model/data-consumer';
-import { Time } from '../model/horz-scale-behavior-time/types';
-import { CustomData, ICustomSeriesPaneView } from '../model/icustom-series';
-import { IHorzScaleBehavior } from '../model/ihorz-scale-behavior';
-import { Point } from '../model/point';
+import { ChartOptionsImpl, HoveredItemType } from "../model/chart-model";
+import { BarData, HistogramData, LineData, WhitespaceData } from "../model/data-consumer";
+import { Time } from "../model/horz-scale-behavior-time/types";
+import { CustomData, ICustomSeriesPaneView } from "../model/icustom-series";
+import { IHorzScaleBehavior } from "../model/ihorz-scale-behavior";
+import { Point } from "../model/point";
 import {
 	CustomSeriesOptions,
 	SeriesPartialOptions,
 	SeriesPartialOptionsMap,
 	SeriesType,
-} from '../model/series-options';
-import { SeriesDefinition } from '../model/series/series-def';
-import { Logical } from '../model/time-data';
-import { TouchMouseEventData } from '../model/touch-mouse-event-data';
+} from "../model/series-options";
+import { SeriesDefinition } from "../model/series/series-def";
+import { Logical } from "../model/time-data";
+import { TouchMouseEventData } from "../model/touch-mouse-event-data";
 
-import { IPaneApi } from './ipane-api';
-import { IPriceScaleApi } from './iprice-scale-api';
-import { ISeriesApi } from './iseries-api';
-import { ITimeScaleApi } from './itime-scale-api';
+import { IPaneApi } from "./ipane-api";
+import { IPriceScaleApi } from "./iprice-scale-api";
+import { ISeriesApi } from "./iseries-api";
+import { ITimeScaleApi } from "./itime-scale-api";
 
 /**
  * Dimensions of the Chart Pane
@@ -47,11 +47,16 @@ export interface HoveredInfo<HorzScaleItem = Time> {
 	 *
 	 * Prefer this when you want ownership information about the hovered object.
 	 */
-	sourceKind: 'series' | 'series-primitive' | 'pane-primitive';
+	sourceKind: "series" | "series-primitive" | "pane-primitive";
 	/**
 	 * The kind of hovered target object.
 	 */
-	objectKind: 'series' | 'custom-object' | 'custom-price-line' | 'series-marker' | 'primitive';
+	objectKind:
+		| "series"
+		| "custom-object"
+		| "custom-price-line"
+		| "series-marker"
+		| "primitive";
 	/**
 	 * The series that owns the hovered item, if any.
 	 */
@@ -93,7 +98,13 @@ export interface MouseEventParams<HorzScaleItem = Time> {
 	 * Keys of the map are {@link ISeriesApi} instances. Values are prices.
 	 * Values of the map are original data items
 	 */
-	seriesData: Map<ISeriesApi<SeriesType, HorzScaleItem>, BarData<HorzScaleItem> | LineData<HorzScaleItem> | HistogramData<HorzScaleItem> | CustomData<HorzScaleItem>>;
+	seriesData: Map<
+		ISeriesApi<SeriesType, HorzScaleItem>,
+		| BarData<HorzScaleItem>
+		| LineData<HorzScaleItem>
+		| HistogramData<HorzScaleItem>
+		| CustomData<HorzScaleItem>
+	>;
 	/**
 	 * Rich information about the hovered item and its owner.
 	 */
@@ -119,7 +130,9 @@ export interface MouseEventParams<HorzScaleItem = Time> {
 /**
  * A custom function use to handle mouse events.
  */
-export type MouseEventHandler<HorzScaleItem> = (param: MouseEventParams<HorzScaleItem>) => void;
+export type MouseEventHandler<HorzScaleItem> = (
+	param: MouseEventParams<HorzScaleItem>,
+) => void;
 
 /**
  * The main interface of a single chart.
@@ -154,14 +167,22 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	 * const series = chart.addCustomSeries(myCustomPaneView);
 	 * ```
 	 */
-	addCustomSeries<TData extends CustomData<HorzScaleItem>,
+	addCustomSeries<
+		TData extends CustomData<HorzScaleItem>,
 		TOptions extends CustomSeriesOptions,
-		TPartialOptions extends SeriesPartialOptions<TOptions> = SeriesPartialOptions<TOptions>
+		TPartialOptions extends SeriesPartialOptions<TOptions> =
+			SeriesPartialOptions<TOptions>,
 	>(
 		customPaneView: ICustomSeriesPaneView<HorzScaleItem, TData, TOptions>,
 		customOptions?: SeriesPartialOptions<TOptions>,
-		paneIndex?: number
-	): ISeriesApi<'Custom', HorzScaleItem, TData | WhitespaceData<HorzScaleItem>, TOptions, TPartialOptions>;
+		paneIndex?: number,
+	): ISeriesApi<
+		"Custom",
+		HorzScaleItem,
+		TData | WhitespaceData<HorzScaleItem>,
+		TOptions,
+		TPartialOptions
+	>;
 	/**
 	 * Creates a series with specified parameters.
 	 *
@@ -175,7 +196,7 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	addSeries<T extends SeriesType>(
 		definition: SeriesDefinition<T>,
 		options?: SeriesPartialOptionsMap[T],
-		paneIndex?: number
+		paneIndex?: number,
 	): ISeriesApi<T, HorzScaleItem>;
 
 	/**
@@ -355,6 +376,46 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	autoSizeActive(): boolean;
 
 	/**
+	 * Get the control container elements for each pane widget.
+	 */
+	getControlContainers(): HTMLElement[];
+
+	/**
+	 * Get the pane IDs for each pane widget in order.
+	 */
+	getPaneIds(): number[];
+
+	/**
+	 * Get the index of the main chart pane widget.
+	 */
+	getMainPaneIndex(): number;
+
+	/**
+	 * Get the series titles for each pane.
+	 */
+	getPaneTitles(): string[];
+
+	/**
+	 * Collapse a sub-pane to a thin bar.
+	 */
+	collapsePane(index: number): void;
+
+	/**
+	 * Restore a collapsed sub-pane to its normal size.
+	 */
+	restorePane(index: number): void;
+
+	/**
+	 * Maximize a sub-pane to fill the entire chart area.
+	 */
+	maximizePane(index: number): void;
+
+	/**
+	 * Minimize a maximized sub-pane back to its normal size.
+	 */
+	minimizePane(index: number): void;
+
+	/**
 	 * Returns the generated div element containing the chart. This can be used for adding your own additional event listeners, or for measuring the
 	 * elements dimensions and position within the document.
 	 *
@@ -372,7 +433,11 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	 * @param price - The price (vertical coordinate) of the new crosshair position.
 	 * @param horizontalPosition - The horizontal coordinate (time by default) of the new crosshair position.
 	 */
-	setCrosshairPosition(price: number, horizontalPosition: HorzScaleItem, seriesApi: ISeriesApi<SeriesType, HorzScaleItem>): void;
+	setCrosshairPosition(
+		price: number,
+		horizontalPosition: HorzScaleItem,
+		seriesApi: ISeriesApi<SeriesType, HorzScaleItem>,
+	): void;
 
 	/**
 	 * Clear the crosshair position within the chart.

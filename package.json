@@ -1,7 +1,7 @@
 {
   "private": true,
   "version": "5.2.0",
-  "name": "lightweight-charts",
+  "name": "lightweight-charts-multi-pane",
   "author": "TradingView, Inc.",
   "license": "Apache-2.0",
   "description": "Performant financial charts built with HTML5 canvas",

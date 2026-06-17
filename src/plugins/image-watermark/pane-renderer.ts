@@ -2,11 +2,11 @@ import {
 	CanvasRenderingTarget2D,
 	MediaCoordinatesRenderingScope,
 	Size,
-} from 'fancy-canvas';
+} from "fancy-canvas";
 
-import { IPrimitivePaneRenderer } from '../../model/ipane-primitive';
+import { IPrimitivePaneRenderer } from "../../model/ipane-primitive";
 
-import { ImageWatermarkOptions } from './options';
+import { ImageWatermarkOptions } from "./options";
 
 export interface Placement {
 	x: number;
@@ -40,10 +40,11 @@ export class ImageWatermarkRenderer implements IPrimitivePaneRenderer {
 		});
 	}
 
-	private _determinePlacement(data: ImageWatermarkRendererOptions, paneSize: Size): Placement | null {
-		const { maxHeight, maxWidth, imgHeight, imgWidth, padding } = data;
-		const plotCentreX = Math.round(paneSize.width / 2);
-		const plotCentreY = Math.round(paneSize.height / 2);
+	private _determinePlacement(
+		data: ImageWatermarkRendererOptions,
+		paneSize: Size,
+	): Placement | null {
+		const { maxHeight, maxWidth, imgHeight, imgWidth, padding, position } = data;
 
 		const paddingSize = padding ?? 0;
 		let availableWidth = paneSize.width - 2 * paddingSize;
@@ -63,8 +64,36 @@ export class ImageWatermarkRenderer implements IPrimitivePaneRenderer {
 		const drawWidth = imgWidth * scaleToUse;
 		const drawHeight = imgHeight * scaleToUse;
 
-		const x = plotCentreX - 0.5 * drawWidth;
-		const y = plotCentreY - 0.5 * drawHeight;
+		let x: number;
+		let y: number;
+
+		const pos = position ?? "center";
+		switch (pos) {
+			case "top-left":
+				x = paddingSize;
+				y = paddingSize;
+				break;
+			case "top-right":
+				x = paneSize.width - paddingSize - drawWidth;
+				y = paddingSize;
+				break;
+			case "bottom-left":
+				x = paddingSize;
+				y = paneSize.height - paddingSize - drawHeight;
+				break;
+			case "bottom-right":
+				x = paneSize.width - paddingSize - drawWidth;
+				y = paneSize.height - paddingSize - drawHeight;
+				break;
+			case "center":
+			default: {
+				const plotCentreX = Math.round(paneSize.width / 2);
+				const plotCentreY = Math.round(paneSize.height / 2);
+				x = plotCentreX - 0.5 * drawWidth;
+				y = plotCentreY - 0.5 * drawHeight;
+				break;
+			}
+		}
 
 		return {
 			x,

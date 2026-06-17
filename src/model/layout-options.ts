@@ -1,13 +1,13 @@
-import { CustomColorParser } from './colors';
+import { CustomColorParser } from "./colors";
 
 /**
  * Represents a type of color.
  */
 export const enum ColorType {
 	/** Solid color */
-	Solid = 'solid',
+	Solid = "solid",
 	/** Vertical gradient color */
-	VerticalGradient = 'gradient',
+	VerticalGradient = "gradient",
 }
 
 /**
@@ -50,31 +50,53 @@ export interface VerticalGradientColor {
  */
 export type Background = SolidColor | VerticalGradientColor;
 
-export type ColorSpace = 'display-p3' | 'srgb';
+export type ColorSpace = "display-p3" | "srgb";
+
+/** Logo theme type */
+export type LogoTheme = "dark" | "light";
+
+/**
+ * A function that returns an HTML string for the brand logo,
+ * given the current chart theme ("dark" or "light").
+ */
+export type BrandLogoRenderer = (theme: LogoTheme) => string;
+
+/**
+ * Configuration for a custom brand logo on the chart.
+ *
+ * - `content` — function returning the logo HTML string.
+ * - `href` — optional URL; when provided the logo is wrapped in a clickable `<a>` tag.
+ * - `title` — optional tooltip shown on hover (only used when `href` is set).
+ */
+export interface BrandLogoOptions {
+	content: BrandLogoRenderer;
+	href?: string;
+	title?: string;
+}
 
 /**
  * Represents panes customizations.
  */
 export interface LayoutPanesOptions {
 	/**
-	* Enable panes resizing
-	*
-	* @defaultValue `true`
-	*/
+	 * Enable panes resizing
+	 *
+	 * @defaultValue `true`
+	 */
 	enableResize: boolean;
 
 	/**
-	* Color of pane separator
-	*
-	* @defaultValue `#2B2B43`
-	*/
+	 * Color of pane separator
+	 *
+	 * @defaultValue `#2B2B43`
+	 */
 	separatorColor: string;
 
 	/**
-	* Color of pane separator background applied on hover
-	*
-	* @defaultValue `rgba(178, 181, 189, 0.2)`
-	*/
+	 * Color of pane separator background applied on hover
+	 *
+	 * @defaultValue `rgba(178, 181, 189, 0.2)`
+	 */
 	separatorHoverColor: string;
 }
 
@@ -125,9 +147,54 @@ export interface LayoutOptions {
 	 * However, if you already fulfill this requirement then you can disable this
 	 * attribution logo.
 	 *
+	 * Note: if `brandLogo` is set, this option is ignored and the custom brand logo
+	 * is shown instead.
+	 *
 	 * @defaultValue true
 	 */
 	attributionLogo: boolean;
+
+	/**
+	 * Custom brand logo to display on the main chart pane.
+	 *
+	 * When set, this overrides `attributionLogo` — the default TV logo will not be shown
+	 * and the returned HTML will be rendered inside the attribution container.
+	 *
+	 * The `content` function receives the current theme (`"dark"` or `"light"`) and
+	 * returns an HTML string (e.g. from `renderToStaticMarkup` or a plain SVG string).
+	 *
+	 * When `href` is provided the logo is wrapped in a clickable `<a>` tag.
+	 * When `title` is provided it is shown as a tooltip on hover.
+	 *
+	 * @defaultValue undefined
+	 *
+	 * @example
+	 * ```ts
+	 * import { renderToStaticMarkup } from 'react-dom/server';
+	 * import { MyLogo } from './MyLogo';
+	 *
+	 * // Simple — renders in a <div>
+	 * chart.applyOptions({
+	 *   layout: {
+	 *     brandLogo: {
+	 *       content: (theme) => renderToStaticMarkup(<MyLogo theme={theme} />),
+	 *     },
+	 *   },
+	 * });
+	 *
+	 * // With link — renders in an <a>
+	 * chart.applyOptions({
+	 *   layout: {
+	 *     brandLogo: {
+	 *       content: (theme) => renderToStaticMarkup(<MyLogo theme={theme} />),
+	 *       href: 'https://mytradingpals.com',
+	 *       title: 'MyTradingPals',
+	 *     },
+	 *   },
+	 * });
+	 * ```
+	 */
+	brandLogo: BrandLogoOptions | undefined;
 
 	/**
 	 * Specifies the color space of the rendering context for the internal

@@ -1,3 +1,10 @@
+export type ImageWatermarkPosition =
+	| "center"
+	| "top-left"
+	| "top-right"
+	| "bottom-left"
+	| "bottom-right";
+
 export interface ImageWatermarkOptions {
 	/**
 	 * Maximum width for the image watermark.
@@ -25,9 +32,16 @@ export interface ImageWatermarkOptions {
 	 * @defaultValue 1
 	 */
 	alpha: number;
+	/**
+	 * Position of the watermark within the chart pane.
+	 *
+	 * @defaultValue 'center'
+	 */
+	position: ImageWatermarkPosition;
 }
 
 export const imageWatermarkOptionsDefaults: ImageWatermarkOptions = {
 	alpha: 1,
 	padding: 0,
+	position: "center",
 };
