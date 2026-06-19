@@ -1,7 +1,7 @@
 import type { BrandLogoOptions, LogoTheme } from "../model/layout-options";
 import { IChartWidgetBase } from "./chart-widget";
 
-const css = `#mtp-attr-logo{position:absolute;left:10px;bottom:10px;margin:0;padding:0;border:0;z-index:3;}`;
+const css = `#mtp-attr-logo{position:absolute;left:10px;bottom:10px;margin:0;padding:0;border:0;z-index:3;display:flex;align-items:center;overflow:hidden;max-width:25px;transition:max-width 0.3s ease,opacity 0.3s ease;}#mtp-attr-logo:hover{max-width:130px;}#mtp-attr-logo .mtp-logo-text{opacity:0;transition:opacity 0.3s ease 0.1s;margin-left:2px;}#mtp-attr-logo:hover .mtp-logo-text{opacity:1;}`;
 
 // This widget doesn't support dynamically responding to options changes
 // because it is expected that the `brandLogo` option won't be changed
@@ -59,14 +59,11 @@ export class AttributionLogoWidget {
 			string,
 			unknown
 		>;
-		console.log("[MTP Debug] layoutOptions keys:", Object.keys(layoutOptions));
-		console.log("[MTP Debug] brandLogo:", layoutOptions["brandLogo"]);
-		console.log("[MTP Debug] attributionLogo:", layoutOptions["attributionLogo"]);
 		// Show custom brand logo if provided, otherwise fall back to attributionLogo boolean
-		if (layoutOptions["brandLogo"] !== undefined) {
+		if (layoutOptions.brandLogo !== undefined) {
 			return true;
 		}
-		return layoutOptions["attributionLogo"] !== false;
+		return layoutOptions.attributionLogo !== false;
 	}
 
 	private _render(): void {
@@ -81,7 +78,7 @@ export class AttributionLogoWidget {
 				string,
 				unknown
 			>;
-			const brandLogo = layoutOptions["brandLogo"] as BrandLogoOptions | undefined;
+			const brandLogo = layoutOptions.brandLogo as BrandLogoOptions | undefined;
 
 			this._cssElement = document.createElement("style");
 			this._cssElement.innerText = css;
