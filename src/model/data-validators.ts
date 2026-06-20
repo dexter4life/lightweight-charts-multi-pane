@@ -76,7 +76,7 @@ function checkBarItem<HorzScaleItem>(
 		);
 
 		assert(
-			isSafeValue(barItem[key]),
+			isSafeValue(barItem[key] as number),
 			`${type} series item data value of ${key} must be between ${MIN_SAFE_VALUE.toPrecision(16)} and ${MAX_SAFE_VALUE.toPrecision(16)}, got=${typeof barItem[key]}, value=${
 				barItem[key]
 			}`
