@@ -87,7 +87,7 @@ export class ChartWidget<HorzScaleItem> implements IDestroyable, IChartWidgetBas
 		this._horzScaleBehavior = horzScaleBehavior;
 
 		this._element = document.createElement('div');
-		this._element.classList.add('tv-lightweight-charts');
+		this._element.classList.add("chart");
 		this._element.style.overflow = 'hidden';
 		this._element.style.direction = 'ltr';
 		this._element.style.width = '100%';
