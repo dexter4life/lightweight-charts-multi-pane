@@ -60,7 +60,12 @@ export function mountDrawingChart(): MountedChart {
   container.style.width = "100%";
   container.style.height = "500px";
 
+  // Append to DOM BEFORE creating the chart so clientWidth/clientHeight are non-zero
+  const root = document.getElementById("storybook-root") ?? document.body;
+  root.appendChild(container);
+
   const chart = createChart(container, {
+    autoSize: true,
     layout: {
       background: { color: "#1a1a2e" },
       textColor: "#d1d4dc",
