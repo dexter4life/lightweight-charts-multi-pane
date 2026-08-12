@@ -12,8 +12,5 @@ export default {
   framework: {
     name: "@storybook/html-vite",
     options: {},
-  },
-  viteFinal: async (config) => {
-    return config;
-  },
+  }
 };

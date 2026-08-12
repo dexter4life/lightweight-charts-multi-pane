@@ -1,6 +1,6 @@
+import { globby } from 'globby';
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
-import { globby } from 'globby';
 
 const paths = (await globby(['./src/**/*.html'])).map(path =>
 	path.replace('./src/', '')
@@ -17,6 +17,9 @@ paths.forEach(p => {
 
 export default defineConfig({
 	base: './',
+	server: {
+		port: 4000
+	},
 	build: {
 		rollupOptions: {
 			input,

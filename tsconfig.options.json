@@ -27,6 +27,10 @@
 		"types": [
 			"_global-types",
 			"dom-not-standarted"
-		]
+		],
+		"baseUrl": ".",
+		"paths": {
+			"@core/*": ["src/*"]
+		}
 	}
 }

@@ -1,5 +1,5 @@
-import { createChart, IChartApi, ISeriesApi, CandlestickData, Time, CandlestickSeries } from "lightweight-charts";
-import { DrawingManager, getToolRegistry, type Anchor, type IDrawing, type DrawingStyle } from "../src";
+import { AreaSeries, CandlestickData, CandlestickSeries, createChart, IChartApi, ISeriesApi, LineData, LineSeries, Time } from "../src";
+import { DrawingManager, getToolRegistry, type Anchor, type DrawingStyle, type IDrawing } from "../src/drawing-tools";
 
 /**
  * Generate deterministic fallback candlestick data (mirrors demo/main.ts).
@@ -204,3 +204,152 @@ export function createDrawingFromRegistry(
   }
   return drawing;
 }
+
+/**
+ * Generate deterministic line data for plugin stories.
+ */
+function generateLineData(numPoints = 500): LineData<Time>[] {
+  const data: LineData<Time>[] = [];
+  let basePrice = 100;
+  const baseDate = new Date(Date.UTC(2018, 0, 1, 12, 0, 0, 0));
+
+  let seed = 42;
+  const rand = () => {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+
+  for (let i = 0; i < numPoints; i++) {
+    const date = new Date(baseDate);
+    date.setUTCDate(baseDate.getUTCDate() + i);
+
+    const volatility = 0.02;
+    const trend = Math.sin(i / 30) * 0.001;
+    const change = (rand() - 0.5) * 2 * volatility + trend;
+
+    data.push({
+      time: (date.getTime() / 1000) as Time,
+      value: basePrice,
+    });
+
+    basePrice = basePrice * (1 + change);
+  }
+
+  return data;
+}
+
+/**
+ * Generate deterministic candlestick data for plugin stories.
+ */
+function generateCandleData(numPoints = 200): CandlestickData<Time>[] {
+  const lineData = generateLineData(numPoints);
+  let seed = 42;
+  const rand = () => {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+  return lineData.map((d) => {
+    const range = rand() * 10;
+    const sign = Math.sin(rand() - 0.5);
+    return {
+      time: d.time,
+      low: d.value - range,
+      high: d.value + range,
+      open: d.value + sign * range,
+      close: d.value + sign * range * 0.5,
+    };
+  });
+}
+
+export interface PluginChart {
+  container: HTMLDivElement;
+  chart: IChartApi;
+}
+
+/**
+ * Mount a bare chart container on the storybook root with dark theme.
+ */
+export function mountPluginChart(extraOptions?: Record<string, any>): PluginChart {
+  const container = document.createElement("div");
+  container.style.width = "100%";
+  container.style.height = "500px";
+
+  const root = document.getElementById("storybook-root") ?? document.body;
+  root.appendChild(container);
+
+  const chart = createChart(container, {
+    autoSize: true,
+    layout: {
+      background: { color: "#1a1a2e" },
+      textColor: "#d1d4dc",
+    },
+    grid: {
+      vertLines: { color: "#2B2B43" },
+      horzLines: { color: "#2B2B43" },
+    },
+    crosshair: { mode: 1 },
+    rightPriceScale: { borderColor: "#2B2B43" },
+    timeScale: { borderColor: "#2B2B43", timeVisible: true },
+    ...extraOptions,
+  });
+
+  return { container, chart };
+}
+
+/**
+ * Mount chart + line series with data.
+ */
+export function mountPluginLineChart(): PluginChart & {
+  series: ISeriesApi<"Line">;
+  data: LineData<Time>[];
+} {
+  const { container, chart } = mountPluginChart();
+  const series = chart.addSeries(LineSeries, { color: "#2962FF" });
+  const data = generateLineData();
+  series.setData(data);
+  chart.timeScale().fitContent();
+  return { container, chart, series, data };
+}
+
+/**
+ * Mount chart + area series with data.
+ */
+export function mountPluginAreaChart(): PluginChart & {
+  series: ISeriesApi<"Area">;
+  data: LineData<Time>[];
+} {
+  const { container, chart } = mountPluginChart();
+  const series = chart.addSeries(AreaSeries, {
+    lineColor: "rgb(4,153,129)",
+    topColor: "rgba(4,153,129, 0.4)",
+    bottomColor: "rgba(4,153,129, 0)",
+    priceLineVisible: false,
+  });
+  const data = generateLineData();
+  series.setData(data);
+  chart.timeScale().fitContent();
+  return { container, chart, series, data };
+}
+
+/**
+ * Mount chart + candlestick series with data.
+ */
+export function mountPluginCandleChart(): PluginChart & {
+  series: ISeriesApi<"Candlestick">;
+  data: CandlestickData<Time>[];
+} {
+  const { container, chart } = mountPluginChart();
+  const series = chart.addSeries(CandlestickSeries, {
+    upColor: "#26a69a",
+    downColor: "#ef5350",
+    borderVisible: false,
+    wickUpColor: "#26a69a",
+    wickDownColor: "#ef5350",
+  });
+  const data = generateCandleData();
+  series.setData(data);
+  chart.timeScale().fitContent();
+  return { container, chart, series, data };
+}
+
+export { generateCandleData, generateLineData };

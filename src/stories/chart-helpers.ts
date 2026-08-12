@@ -58,10 +58,13 @@ export interface MountedChart {
 export function mountDrawingChart(): MountedChart {
   const container = document.createElement("div");
   container.style.width = "100%";
-  container.style.height = "500px";
+  container.style.height = "100%";
 
-  // Append to DOM BEFORE creating the chart so clientWidth/clientHeight are non-zero
+  // Append to DOM BEFORE creating the chart so clientWidth/clientHeight are non-zero.
+  // Size the Storybook root to the viewport so the container's 100% height resolves.
   const root = document.getElementById("storybook-root") ?? document.body;
+  root.style.width = "100%";
+  root.style.height = "100vh";
   root.appendChild(container);
 
   const chart = createChart(container, {

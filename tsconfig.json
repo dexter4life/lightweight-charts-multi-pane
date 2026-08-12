@@ -6,5 +6,9 @@
 	"include": [
 		"src/**/*.ts",
 		"tests/**/*.ts"
+	],
+	"exclude": [
+		"src/.storybook/**",
+		"src/stories/**"
 	]
 }

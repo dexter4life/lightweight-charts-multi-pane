@@ -111,7 +111,12 @@
     "tslint-microsoft-contrib": "6.2.0",
     "tsx": "4.19.3",
     "typescript": "5.5.4",
-    "yargs": "17.7.2"
+    "yargs": "17.7.2",
+    "storybook": "^8.6.14",
+    "@storybook/html": "^8.6.14",
+    "@storybook/html-vite": "^8.6.14",
+    "vite": "^7.2.0",
+    "vite-tsconfig-paths": "^5.1.4"
   },
   "scripts": {
     "postinstall": "npm run install-hooks",
@@ -142,6 +147,8 @@
     "type-tests": "tsc -b ./src/tsconfig.composite.json && tsc -p ./tests/type-checks/tsconfig.composite.json --noEmit",
     "e2e:coverage": "esno ./tests/e2e/coverage/runner.ts ./dist/lightweight-charts.standalone.development.js",
     "e2e:interactions": "esno ./tests/e2e/interactions/runner.ts ./dist/lightweight-charts.standalone.development.js",
-    "e2e:memleaks": "esno ./tests/e2e/memleaks/runner.ts ./dist/lightweight-charts.standalone.development.js"
+    "e2e:memleaks": "esno ./tests/e2e/memleaks/runner.ts ./dist/lightweight-charts.standalone.development.js",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   }
 }
