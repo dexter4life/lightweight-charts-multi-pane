@@ -11,6 +11,12 @@ export interface MousePosition {
 	overTimeScale: boolean;
 }
 
+/** MousePosition bundled with the raw DOM event so consumers can call preventDefault(). */
+export interface MousePositionEvent {
+	position: MousePosition;
+	event: MouseEvent;
+}
+
 type UnSubscriber = () => void;
 
 /**
@@ -25,9 +31,15 @@ export class MouseHandlers {
 	_unSubscribers: UnSubscriber[] = [];
 
 	private _clicked: Delegate<MousePosition | null> = new Delegate();
-	private _mouseMoved: Delegate<MousePosition | null> = new Delegate();
+	private _mouseMoved: Delegate<MousePositionEvent | null> = new Delegate();
+	private _mouseDown: Delegate<MousePositionEvent | null> = new Delegate();
+	private _mouseUp: Delegate<MousePositionEvent | null> = new Delegate();
 
 	attached(chart: IChartApi, series: ISeriesApi<SeriesType>) {
+		// Guard against re-entry: clean up previous listeners before re-adding
+		if (this._chart) {
+			this.detached();
+		}
 		this._chart = chart;
 		this._series = series;
 		const container = this._chart.chartElement();
@@ -46,12 +58,24 @@ export class MouseHandlers {
 			'click',
 			this._mouseClick
 		);
+		this._addMouseEventListener(
+			container,
+			'mousedown',
+			this._mouseDownHandler
+		);
+		this._addMouseEventListener(
+			container,
+			'mouseup',
+			this._mouseUpHandler
+		);
 	}
 
 	detached() {
 		this._series = undefined;
         this._clicked.destroy();
         this._mouseMoved.destroy();
+        this._mouseDown.destroy();
+        this._mouseUp.destroy();
 		this._unSubscribers.forEach(unSub => {
 			unSub();
 		});
@@ -62,19 +86,30 @@ export class MouseHandlers {
 		return this._clicked;
 	}
 
-	public mouseMoved(): ISubscription<MousePosition | null> {
+	public mouseMoved(): ISubscription<MousePositionEvent | null> {
 		return this._mouseMoved;
+	}
+
+	public mouseDown(): ISubscription<MousePositionEvent | null> {
+		return this._mouseDown;
+	}
+
+	public mouseUp(): ISubscription<MousePositionEvent | null> {
+		return this._mouseUp;
 	}
 
 	_addMouseEventListener(
 		target: HTMLDivElement,
-		eventType: 'mouseleave' | 'mousemove' | 'click',
+		eventType: 'mouseleave' | 'mousemove' | 'click' | 'mousedown' | 'mouseup',
 		handler: (event: MouseEvent) => void
 	): void {
 		const boundMouseMoveHandler = handler.bind(this);
-		target.addEventListener(eventType, boundMouseMoveHandler);
+		// Capture phase lets us intercept events before they reach the chart's
+		// internal canvas handler, so we can stop propagation during a drag
+		// and prevent the chart from panning simultaneously.
+		target.addEventListener(eventType, boundMouseMoveHandler, { capture: true });
 		const unSubscriber = () => {
-			target.removeEventListener(eventType, boundMouseMoveHandler);
+			target.removeEventListener(eventType, boundMouseMoveHandler, { capture: true });
 		};
 		this._unSubscribers.push(unSubscriber);
 	}
@@ -83,10 +118,33 @@ export class MouseHandlers {
 		this._mouseMoved.fire(null);
 	}
 	_mouseMove(event: MouseEvent) {
-		this._mouseMoved.fire(this._determineMousePosition(event));
+		const position = this._determineMousePosition(event);
+		if (position) {
+			this._mouseMoved.fire({ position, event });
+		} else {
+			this._mouseMoved.fire(null);
+		}
 	}
 	_mouseClick(event: MouseEvent) {
 		this._clicked.fire(this._determineMousePosition(event));
+	}
+
+	_mouseDownHandler(event: MouseEvent) {
+		const position = this._determineMousePosition(event);
+		if (position) {
+			this._mouseDown.fire({ position, event });
+		} else {
+			this._mouseDown.fire(null);
+		}
+	}
+
+	_mouseUpHandler(event: MouseEvent) {
+		const position = this._determineMousePosition(event);
+		if (position) {
+			this._mouseUp.fire({ position, event });
+		} else {
+			this._mouseUp.fire(null);
+		}
 	}
 
 	_determineMousePosition(event: MouseEvent): MousePosition | null {

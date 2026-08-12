@@ -19,7 +19,7 @@ export class UserAlertPricePaneView implements IPrimitivePaneView {
 		return this._renderer;
 	}
 
-	update(data: IRendererData | null) {
+	update(data: IRendererData) {
 		this._renderer.update(data);
 	}
 }

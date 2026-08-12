@@ -1,3 +1,5 @@
+import { defaultPriceAlertsOptions, type PriceAlertsOptions } from './constants';
+
 interface CrosshairRendererData {
 	y: number;
 	text: string;
@@ -17,7 +19,10 @@ interface NoHoverData {
 interface AlertRendererDataBase {
 	y: number;
 	showHover: boolean;
+	selected: boolean;
+	dragged: boolean;
 	text?: string;
+	price?: number;
 }
 
 interface CrosshairButtonData {
@@ -29,9 +34,20 @@ interface CrosshairButtonData {
 export type AlertRendererData = AlertRendererDataBase & (ShowHoverData | NoHoverData);
 
 export interface IRendererData {
-    alertIcon: Path2D[];
+	alertIcon: Path2D[];
 	alerts: AlertRendererData[];
 	button: CrosshairButtonData | null;
 	color: string;
 	crosshair: CrosshairRendererData | null;
+	options: PriceAlertsOptions;
 }
+
+/** Sensible default so _data is never null. */
+export const defaultRendererData: IRendererData = {
+	alertIcon: [],
+	alerts: [],
+	button: null,
+	color: '#131722',
+	crosshair: null,
+	options: defaultPriceAlertsOptions,
+};

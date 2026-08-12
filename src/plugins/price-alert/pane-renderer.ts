@@ -1,26 +1,11 @@
 import { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from "fancy-canvas";
 import { positionsLine } from "../../helpers/dimensions/positions";
-import {
-	averageWidthPerCharacter,
-	buttonHeight,
-	buttonWidth,
-	centreLabelHeight,
-	centreLabelInlinePadding,
-	clockIconViewBoxSize,
-	crossPath,
-	crossViewBoxSize,
-	iconPadding,
-	iconPaddingAlertTop,
-	iconSize,
-	labelHeight,
-	removeButtonWidth,
-} from "./constants";
+import { crossPath } from "./constants";
 import { PaneRendererBase } from "./renderer-base";
 
 export class PaneRenderer extends PaneRendererBase {
 	draw(target: CanvasRenderingTarget2D): void {
 		target.useBitmapCoordinateSpace((scope) => {
-			if (!this._data) return;
 			this._drawAlertLines(scope);
 			this._drawAlertIcons(scope);
 
@@ -54,10 +39,14 @@ export class PaneRenderer extends PaneRendererBase {
 			ctx.beginPath();
 			ctx.lineWidth = data.lineWidth;
 			ctx.strokeStyle = data.color;
-			const dash = 4 * scope.horizontalPixelRatio;
+			const dash = this._data.options.line.dashLength * scope.horizontalPixelRatio;
 			ctx.setLineDash([dash, dash]);
 			ctx.moveTo(0, yCentre);
-			ctx.lineTo((data.width - buttonWidth) * scope.horizontalPixelRatio, yCentre);
+			ctx.lineTo(
+				(data.width - this._data.options.crosshairButton.width) *
+					scope.horizontalPixelRatio,
+				yCentre,
+			);
 			ctx.stroke();
 		} finally {
 			ctx.restore();
@@ -65,14 +54,15 @@ export class PaneRenderer extends PaneRendererBase {
 	}
 
 	_drawAlertLines(scope: BitmapCoordinatesRenderingScope) {
-		if (!this._data?.alerts) return;
+		if (!this._data.alerts.length) return;
 		const color = this._data.color;
 
 		this._data.alerts.forEach((alertData) => {
-			console.log(alertData);
 			this._drawHorizontalLine(scope, {
-				width: scope.mediaSize.width,
-				lineWidth: 1,
+				width: alertData.selected ? scope.mediaSize.width + 50 : scope.mediaSize.width,
+				lineWidth: alertData.selected
+					? this._data.options.line.selectedWidth
+					: this._data.options.line.unselectedWidth,
 				color,
 				y: alertData.y,
 			});
@@ -80,39 +70,82 @@ export class PaneRenderer extends PaneRendererBase {
 	}
 
 	_drawAlertIcons(scope: BitmapCoordinatesRenderingScope) {
-		if (!this._data?.alerts) return;
+		if (!this._data.alerts.length) return;
 		const color = this._data.color;
-		const icon = this._data.alertIcon;
 		this._data.alerts.forEach((alert) => {
-			this._drawLabel(scope, {
-				width: scope.mediaSize.width,
-				labelHeight,
-				y: alert.y,
-				roundedCorners: 2,
-				icon,
-				iconScaling: iconSize / clockIconViewBoxSize,
-				padding: {
-					left: iconPadding,
-					top: iconPaddingAlertTop,
-				},
-				color,
-			});
+			if (!alert.selected) {
+				this._drawRightArrow(scope, {
+					y: alert.y,
+					color,
+				});
+			}
 		});
 	}
 
+	_drawRightArrow(
+		scope: BitmapCoordinatesRenderingScope,
+		data: {
+			y: number;
+			color: string;
+		},
+	) {
+		const ctx = scope.context;
+		const labelOpts = this._data.options.label;
+		const cbOpts = this._data.options.crosshairButton;
+		try {
+			ctx.save();
+			const yDimension = positionsLine(
+				data.y,
+				scope.verticalPixelRatio,
+				labelOpts.height,
+			);
+			const x = (scope.mediaSize.width - (cbOpts.width + 1)) * scope.horizontalPixelRatio;
+
+			ctx.beginPath();
+
+			// right arrow
+			const arrowSize = labelOpts.iconSize;
+			const scale = arrowSize / labelOpts.iconViewBoxSize;
+			const cx =
+				x +
+				labelOpts.iconPaddingLeft * scope.horizontalPixelRatio +
+				(arrowSize * scale * scope.horizontalPixelRatio) / 2;
+			const cy =
+				yDimension.position +
+				labelOpts.iconPaddingAlertTop * scope.verticalPixelRatio +
+				(arrowSize * scale * scope.verticalPixelRatio) / 2;
+			const halfW = (arrowSize * scale * scope.horizontalPixelRatio) / 2;
+			const halfH = (arrowSize * scale * scope.verticalPixelRatio) / 2;
+
+			ctx.beginPath();
+			ctx.moveTo(cx - halfW, cy - halfH);
+			ctx.lineTo(cx + halfW, cy);
+			ctx.lineTo(cx - halfW, cy + halfH);
+			ctx.closePath();
+			ctx.fillStyle = this._data.options.line.color;
+			ctx.fill();
+		} finally {
+			ctx.restore();
+		}
+	}
+
 	_calculateLabelWidth(textLength: number) {
+		const opts = this._data.options.centreLabel;
 		return (
-			centreLabelInlinePadding * 2 +
-			removeButtonWidth +
-			textLength * averageWidthPerCharacter
+			opts.inlinePadding * 2 + opts.removeButtonWidth + textLength * opts.averageCharWidth
 		);
 	}
 
 	_drawAlertLabel(scope: BitmapCoordinatesRenderingScope) {
-		if (!this._data?.alerts) return;
+		if (!this._data.alerts.length) return;
 		const ctx = scope.context;
-		const activeLabel = this._data.alerts.find((alert) => alert.showHover);
-		if (!activeLabel || !activeLabel.showHover) return;
+		const activeLabel = this._data.alerts.find(
+			(alert) => alert.showHover || alert.selected,
+		);
+		if (!activeLabel || !activeLabel.text) return;
+		const hasRemoveButton = "hoverRemove" in activeLabel;
+		const opts = this._data.options;
+		const centreOpts = opts.centreLabel;
 		const labelWidth = this._calculateLabelWidth(activeLabel.text.length);
 		const labelXDimensions = positionsLine(
 			scope.mediaSize.width / 2,
@@ -122,12 +155,12 @@ export class PaneRenderer extends PaneRendererBase {
 		const yDimensions = positionsLine(
 			activeLabel.y,
 			scope.verticalPixelRatio,
-			centreLabelHeight,
+			centreOpts.height,
 		);
 
 		ctx.save();
 		try {
-			const radius = 4 * scope.horizontalPixelRatio;
+			const radius = centreOpts.borderRadius * scope.horizontalPixelRatio;
 			// draw main body background of label
 			ctx.beginPath();
 			ctx.roundRect(
@@ -137,25 +170,25 @@ export class PaneRenderer extends PaneRendererBase {
 				yDimensions.length,
 				radius,
 			);
-			ctx.fillStyle = "#FFFFFF";
+			ctx.fillStyle = centreOpts.backgroundColor;
 			ctx.fill();
 
 			const removeButtonStartX =
 				labelXDimensions.position +
 				labelXDimensions.length -
-				removeButtonWidth * scope.horizontalPixelRatio;
+				centreOpts.removeButtonWidth * scope.horizontalPixelRatio;
 
-			if (activeLabel.hoverRemove) {
+			if (hasRemoveButton && activeLabel.hoverRemove) {
 				// draw hover background for remove button
 				ctx.beginPath();
 				ctx.roundRect(
 					removeButtonStartX,
 					yDimensions.position,
-					removeButtonWidth * scope.horizontalPixelRatio,
+					centreOpts.removeButtonWidth * scope.horizontalPixelRatio,
 					yDimensions.length,
 					[0, radius, radius, 0],
 				);
-				ctx.fillStyle = "#F0F3FA";
+				ctx.fillStyle = centreOpts.removeHoverBackground;
 				ctx.fill();
 			}
 
@@ -164,9 +197,9 @@ export class PaneRenderer extends PaneRendererBase {
 			const dividerDimensions = positionsLine(
 				removeButtonStartX / scope.horizontalPixelRatio,
 				scope.horizontalPixelRatio,
-				1,
+				centreOpts.borderWidth,
 			);
-			ctx.fillStyle = "#F1F3FB";
+			ctx.fillStyle = centreOpts.dividerColor;
 			ctx.fillRect(
 				dividerDimensions.position,
 				yDimensions.position,
@@ -183,32 +216,34 @@ export class PaneRenderer extends PaneRendererBase {
 				yDimensions.length,
 				radius,
 			);
-			ctx.strokeStyle = "#131722";
-			ctx.lineWidth = 1 * scope.horizontalPixelRatio;
+			ctx.strokeStyle = centreOpts.borderColor;
+			ctx.lineWidth = centreOpts.borderWidth * scope.horizontalPixelRatio;
 			ctx.stroke();
 
 			// write text
 			ctx.beginPath();
-			ctx.fillStyle = "#131722";
+			ctx.fillStyle = centreOpts.fontColor;
 			ctx.textBaseline = "middle";
-			ctx.font = `${Math.round(12 * scope.verticalPixelRatio)}px sans-serif`;
+			ctx.font = `${Math.round(centreOpts.fontSize * scope.verticalPixelRatio)}px ${centreOpts.fontFamily}`;
 			ctx.fillText(
 				activeLabel.text,
-				labelXDimensions.position + centreLabelInlinePadding * scope.horizontalPixelRatio,
+				labelXDimensions.position + centreOpts.inlinePadding * scope.horizontalPixelRatio,
 				activeLabel.y * scope.verticalPixelRatio,
 			);
 
 			// draw button icon
 			ctx.beginPath();
-			const iconSize = 9;
+			const removeIconSize = centreOpts.removeIconSize;
 			ctx.translate(
 				removeButtonStartX +
-					(scope.horizontalPixelRatio * (removeButtonWidth - iconSize)) / 2,
-				(activeLabel.y - 5) * scope.verticalPixelRatio,
+					(scope.horizontalPixelRatio * (centreOpts.removeButtonWidth - removeIconSize)) /
+						2,
+				(activeLabel.y - centreOpts.removeIconYOffset) * scope.verticalPixelRatio,
 			);
-			const scaling = (iconSize / crossViewBoxSize) * scope.horizontalPixelRatio;
+			const scaling =
+				(removeIconSize / centreOpts.removeIconViewBoxSize) * scope.horizontalPixelRatio;
 			ctx.scale(scaling, scaling);
-			ctx.fillStyle = "#131722";
+			ctx.fillStyle = centreOpts.fontColor;
 			ctx.fill(crossPath, "evenodd");
 		} finally {
 			ctx.restore();
@@ -216,27 +251,29 @@ export class PaneRenderer extends PaneRendererBase {
 	}
 
 	_drawCrosshairLine(scope: BitmapCoordinatesRenderingScope) {
-		if (!this._data?.crosshair) return;
+		if (!this._data.crosshair) return;
 		this._drawHorizontalLine(scope, {
 			width: scope.mediaSize.width,
-			lineWidth: 1,
+			lineWidth: this._data.options.line.unselectedWidth,
 			color: this._data.color,
 			y: this._data.crosshair.y,
 		});
 	}
 
 	_drawCrosshairLabelButton(scope: BitmapCoordinatesRenderingScope) {
-		if (!this._data?.button || !this._data?.crosshair) return;
+		if (!this._data.button || !this._data.crosshair) return;
+		const cbOpts = this._data.options.crosshairButton;
+		const labelOpts = this._data.options.label;
 		this._drawLabel(scope, {
 			width: scope.mediaSize.width,
-			labelHeight: buttonHeight,
+			labelHeight: cbOpts.height,
 			y: this._data.crosshair.y,
-			roundedCorners: [2, 0, 0, 2],
+			roundedCorners: cbOpts.borderRadius,
 			icon: this._data.button.crosshairLabelIcon,
-			iconScaling: iconSize / clockIconViewBoxSize,
+			iconScaling: labelOpts.iconSize / cbOpts.iconViewBoxSize,
 			padding: {
-				left: iconPadding,
-				top: iconPadding,
+				left: cbOpts.iconPadding,
+				top: cbOpts.iconPadding,
 			},
 			color: this._data.button.hovering ? this._data.button.hoverColor : this._data.color,
 		});
@@ -267,11 +304,12 @@ export class PaneRenderer extends PaneRendererBase {
 				scope.verticalPixelRatio,
 				data.labelHeight,
 			);
-			const x = (data.width - (buttonWidth + 1)) * scope.horizontalPixelRatio;
+			const cbOpts = this._data.options.crosshairButton;
+			const x = (data.width - (cbOpts.width + 1)) * scope.horizontalPixelRatio;
 			ctx.roundRect(
 				x,
 				yDimension.position,
-				buttonWidth * scope.horizontalPixelRatio,
+				cbOpts.width * scope.horizontalPixelRatio,
 				yDimension.length,
 				adjustRadius(data.roundedCorners, scope.horizontalPixelRatio),
 			);
@@ -286,7 +324,7 @@ export class PaneRenderer extends PaneRendererBase {
 				data.iconScaling * scope.horizontalPixelRatio,
 				data.iconScaling * scope.verticalPixelRatio,
 			);
-			ctx.fillStyle = "#FFFFFF";
+			ctx.fillStyle = this._data.options.label.fontColor;
 			data.icon.forEach((path) => {
 				ctx.beginPath();
 				ctx.fill(path, "evenodd");

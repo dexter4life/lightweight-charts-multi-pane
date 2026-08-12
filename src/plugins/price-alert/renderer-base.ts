@@ -1,11 +1,11 @@
 import { CanvasRenderingTarget2D } from 'fancy-canvas';
 import { IPrimitivePaneRenderer } from '../../model/ipane-primitive';
-import { IRendererData } from './irenderer-data';
+import { defaultRendererData, IRendererData } from './irenderer-data';
 
 export abstract class PaneRendererBase implements IPrimitivePaneRenderer {
-	_data: IRendererData | null = null;
+	_data: IRendererData = defaultRendererData;
 	abstract draw(target: CanvasRenderingTarget2D): void;
-	update(data: IRendererData | null) {
+	update(data: IRendererData) {
 		this._data = data;
 	}
 }

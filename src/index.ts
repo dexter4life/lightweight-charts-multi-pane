@@ -15,12 +15,12 @@ export { MismatchDirection } from "./model/plot-list";
 export { PriceScaleMode } from "./model/price-scale";
 export { LastPriceAnimationMode, PriceLineSource } from "./model/series-options";
 
+export type { CandlestickData, LineData } from "./model/data-consumer";
 export {
     isBusinessDay,
     isUTCTimestamp, TickMarkType
 } from "./model/horz-scale-behavior-time/types";
 export type { Time } from "./model/horz-scale-behavior-time/types";
-export type { CandlestickData, LineData } from "./model/data-consumer";
 export type {
     CustomBarItemData,
     CustomData,
@@ -35,9 +35,9 @@ export const customSeriesDefaultOptions: CustomSeriesOptions = {
 
 export { createChart, createChartEx, defaultHorzScaleBehavior } from "./api/create-chart";
 export type { IChartApi } from "./api/create-chart";
-export type { ISeriesApi } from "./api/iseries-api";
 export { createOptionsChart } from "./api/create-options-chart";
 export { createYieldCurveChart } from "./api/create-yield-curve-chart";
+export type { ISeriesApi } from "./api/iseries-api";
 
 export { areaSeries as AreaSeries } from "./model/series/area-series";
 export { barSeries as BarSeries } from "./model/series/bar-series";
@@ -51,6 +51,9 @@ export { lineSeries as LineSeries } from "./model/series/line-series";
 export type { ImageWatermarkPosition } from "./plugins/image-watermark/options";
 export { createImageWatermark } from "./plugins/image-watermark/primitive";
 export { PriceAlerts } from "./plugins/price-alert";
+export { defaultPriceAlertsOptions } from "./plugins/price-alert/constants";
+export type { PartialOptions, PriceAlertsOptions } from "./plugins/price-alert/constants";
+export type { DragStopInfo, SelectionInfo, UserAlertInfo } from "./plugins/price-alert/state";
 export { createSeriesMarkers } from "./plugins/series-markers/wrapper";
 export { createTextWatermark } from "./plugins/text-watermark/primitive";
 export { createUpDownMarkers } from "./plugins/up-down-markers-plugin/wrapper";
