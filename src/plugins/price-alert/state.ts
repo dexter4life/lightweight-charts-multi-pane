@@ -1,4 +1,4 @@
-import { Delegate } from '../../helpers/price-alert-delegate';
+import { Delegate } from '../../helpers/price-delegate';
 
 export interface UserAlertInfo {
 	id: string;

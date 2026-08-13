@@ -1,6 +1,6 @@
 import { IChartApi } from '../../api/create-chart';
 import { ISeriesApi } from '../../api/iseries-api';
-import { Delegate, ISubscription } from '../../helpers/price-alert-delegate';
+import { Delegate, ISubscription } from '../../helpers/price-delegate';
 import { SeriesType } from '../../model/series-options';
 
 export interface MousePosition {

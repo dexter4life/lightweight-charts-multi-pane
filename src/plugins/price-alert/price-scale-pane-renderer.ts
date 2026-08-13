@@ -5,6 +5,7 @@ import { PaneRendererBase } from "./renderer-base";
 export class PriceScalePaneRenderer extends PaneRendererBase {
 	draw(target: CanvasRenderingTarget2D): void {
 		target.useBitmapCoordinateSpace((scope) => {
+			if (!this._data) return;
 			this._drawCrosshairLabel(scope);
 			const color = this._data.color;
 
@@ -22,7 +23,7 @@ export class PriceScalePaneRenderer extends PaneRendererBase {
 	}
 
 	_drawCrosshairLabel(scope: BitmapCoordinatesRenderingScope) {
-		if (!this._data.crosshair) return;
+		if (!this._data?.crosshair) return;
 		const ctx = scope.context;
 		const opts = this._data.options.priceScaleLabel;
 		try {

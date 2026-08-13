@@ -14,7 +14,6 @@ export class PaneRenderer extends PaneRendererBase {
 			);
 
 			if (!hasRemoveHover) {
-				this._drawCrosshairLine(scope);
 				this._drawCrosshairLabelButton(scope);
 			}
 			this._drawAlertLabel(scope);
@@ -248,16 +247,6 @@ export class PaneRenderer extends PaneRendererBase {
 		} finally {
 			ctx.restore();
 		}
-	}
-
-	_drawCrosshairLine(scope: BitmapCoordinatesRenderingScope) {
-		if (!this._data.crosshair) return;
-		this._drawHorizontalLine(scope, {
-			width: scope.mediaSize.width,
-			lineWidth: this._data.options.line.unselectedWidth,
-			color: this._data.color,
-			y: this._data.crosshair.y,
-		});
 	}
 
 	_drawCrosshairLabelButton(scope: BitmapCoordinatesRenderingScope) {

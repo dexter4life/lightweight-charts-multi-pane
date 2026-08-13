@@ -2,19 +2,19 @@ import { CanvasRenderingTarget2D } from 'fancy-canvas';
 import {
 	Coordinate,
 	IChartApi,
+	IPrimitivePaneRenderer,
+	IPrimitivePaneView,
 	isBusinessDay,
 	ISeriesApi,
 	ISeriesPrimitiveAxisView,
-	IPrimitivePaneRenderer,
-	IPrimitivePaneView,
 	MouseEventParams,
 	PrimitivePaneViewZOrder,
 	SeriesType,
 	Time,
 } from 'lightweight-charts';
 import { ensureDefined } from '../../helpers/assertions';
-import { PluginBase } from '../plugin-base';
 import { positionsBox } from '../../helpers/dimensions/positions';
+import { PluginBase } from '../plugin-base';
 
 class RectanglePaneRenderer implements IPrimitivePaneRenderer {
 	_p1: ViewPoint;

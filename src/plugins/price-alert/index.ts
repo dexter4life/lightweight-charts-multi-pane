@@ -123,9 +123,18 @@ export class PriceAlerts extends UserAlertsState implements ISeriesPrimitive<Tim
 			if (mousePosition && this._series) {
 				if (this._isHovering(mousePosition)) {
 					const price = this._series.coordinateToPrice(mousePosition.y);
-					if (price) {
-						this.addAlert(price);
-						requestUpdate();
+					if (this._options.beforeAddAlert) {
+						if (this._options.beforeAddAlert(mousePosition,price)) {
+							if (price) {
+								this.addAlert(price);
+								requestUpdate();
+							}
+						}
+					} else {
+						if (price) {
+							this.addAlert(price);
+							requestUpdate();
+						}
 					}
 				} else if (this._hoveringID) {
 					this.removeAlert(this._hoveringID);
