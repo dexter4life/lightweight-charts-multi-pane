@@ -48,13 +48,17 @@ export { lineSeries as LineSeries } from "./model/series/line-series";
 /*
 	Plugins
 */
+export { Crosshair } from "./plugins/crosshair/";
+export { CrosshairType } from "./plugins/crosshair/state";
+export type { CrosshairPluginOptions } from "./plugins/crosshair/state";
 export type { ImageWatermarkPosition } from "./plugins/image-watermark/options";
 export { createImageWatermark } from "./plugins/image-watermark/primitive";
 export { PriceAlerts } from "./plugins/price-alert";
 export { defaultPriceAlertsOptions } from "./plugins/price-alert/constants";
-export type { PartialOptions, PriceAlertsOptions } from "./plugins/price-alert/constants";
+export type { PriceAlertsOptions } from "./plugins/price-alert/constants";
 export type { DragStopInfo, SelectionInfo, UserAlertInfo } from "./plugins/price-alert/state";
 export { createSeriesMarkers } from "./plugins/series-markers/wrapper";
+export type { PartialOptions } from "./plugins/shared/partial-options";
 export { createTextWatermark } from "./plugins/text-watermark/primitive";
 export { createUpDownMarkers } from "./plugins/up-down-markers-plugin/wrapper";
 /*

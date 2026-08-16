@@ -1,4 +1,7 @@
-import { CrosshairType, type CrosshairOptions } from "./constants";
+import { ChartOptionsImpl } from "../../model/chart-model";
+import { Time } from "../../model/horz-scale-behavior-time/types";
+import { PartialOptions } from "../shared/partial-options";
+import { CrosshairPluginOptions } from "./state";
 
 export interface CrosshairRendererData {
 	y: number;
@@ -6,14 +9,14 @@ export interface CrosshairRendererData {
 	iconScaling: number;
 	text: string;
 	isHovered: boolean;
-	size: number;
-	crossType: CrosshairType;
+	mouseDown: boolean;
 	icon: Path2D[] | null;
 }
 
 export interface IRendererData {
-	color: string;
-	strokeColor: string;
+	hasFocus: boolean;
+	altKeyPressed: boolean;	
 	crosshair: CrosshairRendererData | null;
-	options: CrosshairOptions;
+	options: ChartOptionsImpl<Time> | undefined;
+	crosshairOptions: PartialOptions<CrosshairPluginOptions>
 }

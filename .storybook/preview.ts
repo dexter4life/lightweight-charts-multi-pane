@@ -3,13 +3,17 @@
 // it does not re-render stories. Emit FORCE_RE_RENDER so stories re-mount with new code.
 if (import.meta.hot) {
   import.meta.hot.on("vite:afterUpdate", () => {
-    (window as any).__STORYBOOK_PREVIEW__?.channel.emit("forceReRender");
+    ((window as any) as any).__STORYBOOK_PREVIEW__?.channel.emit("forceReRender");
   });
 }
 
 const preview = {
   parameters: {
     layout: "fullscreen",
+    options: {
+      storySort: (a, b) =>
+        a.title.localeCompare(b.title, undefined, { numeric: true }),
+    },
     backgrounds: {
       default: "light",
       values: [
@@ -27,10 +31,3 @@ const preview = {
 };
 
 export default preview;
-
-export const parameters = {
-  options: {
-    storySort: (a, b) =>
-      a.title.localeCompare(b.title, undefined, { numeric: true }),
-  },
-};

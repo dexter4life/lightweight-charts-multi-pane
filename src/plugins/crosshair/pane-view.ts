@@ -1,18 +1,30 @@
-import { IPrimitivePaneRenderer, IPrimitivePaneView, PrimitivePaneViewZOrder } from '../../model/ipane-primitive';
-import { IRendererData } from './irenderer-data';
-import { PaneRenderer } from './pane-renderer';
-import { TimeScalePaneRenderer } from './time-scale-pane-renderer';
+import { IChartApi } from "../../api/create-chart";
+import { ISeriesApi } from "../../api/iseries-api";
+import {
+	IPrimitivePaneRenderer,
+	IPrimitivePaneView,
+	PrimitivePaneViewZOrder,
+} from "../../model/ipane-primitive";
+import { SeriesType } from "../../model/series-options";
+import { IRendererData } from "./irenderer-data";
+import { PaneRenderer } from "./pane-renderer";
+import { TimeScalePaneRenderer } from "./time-scale-pane-renderer";
 
 export class CrosshairPaneView implements IPrimitivePaneView {
 	_renderer: PaneRenderer | TimeScalePaneRenderer;
-	constructor(isTimescale: boolean) {
+	constructor(
+		isTimescale: boolean,
+		chart?: IChartApi,
+		series?: ISeriesApi<SeriesType>,
+		requestUpdate?: () => void,
+	) {
 		this._renderer = isTimescale
 			? new TimeScalePaneRenderer()
-			: new PaneRenderer();
+			: new PaneRenderer(chart, series, requestUpdate);
 	}
 
 	zOrder(): PrimitivePaneViewZOrder {
-		return 'top';
+		return "top";
 	}
 
 	renderer(): IPrimitivePaneRenderer {

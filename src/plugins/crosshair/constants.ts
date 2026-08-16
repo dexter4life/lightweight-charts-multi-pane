@@ -1,33 +1,6 @@
 /** Recursively makes all properties in T optional (simpler than the library-wide DeepPartial
  *  because it doesn't try to partially-unwrap array element types). */
-export type PartialOptions<T> = {
-	[P in keyof T]?: T[P] extends object ? PartialOptions<T[P]> : T[P];
-};
 
-export enum CrosshairType {
-	CROSS = "Cross",
-	DOT = "Dot",
-	ARROW = "Arrow",
-	DEMONSTRATION = "Demo",
-}
-
-export interface CrosshairOptions {
-	line: {
-		color: string;
-		dashLength: number;
-	};
-	crossType: CrosshairType;
-	size: number;
-	priceScaleLabel: {
-		height: number;
-		borderRadius: number;
-		rightInset: number;
-		textLeftPadding: number;
-		fontSize: number;
-		fontFamily: string;
-		textColor: string;
-	};
-}
 
 export const cross: Path2D[] = [
 	new Path2D(

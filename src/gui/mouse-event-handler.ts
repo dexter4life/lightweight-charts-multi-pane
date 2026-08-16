@@ -310,7 +310,7 @@ export class MouseEventHandler implements IDestroyable {
 
 	private _mouseMoveWithDownHandler(moveEvent: MouseEvent): void {
 		// eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
-		if (moveEvent.button !== MouseEventButton.Left) {
+		if (moveEvent.button !== 0) {
 			return;
 		}
 
@@ -451,8 +451,7 @@ export class MouseEventHandler implements IDestroyable {
 	}
 
 	private _mouseUpHandler(mouseUpEvent: MouseEvent): void {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
-		if (mouseUpEvent.button !== MouseEventButton.Left) {
+		if (mouseUpEvent.button !== 0) {
 			return;
 		}
 
@@ -551,10 +550,10 @@ export class MouseEventHandler implements IDestroyable {
 	}
 
 	private _mouseDownHandler(downEvent: MouseEvent): void {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
-		if (downEvent.button !== MouseEventButton.Left) {
-			return;
-		}
+		// // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
+		// if (downEvent.button !== MouseEventButton.Left) {
+		// 	return;
+		// }
 
 		const rootElement = this._target.ownerDocument.documentElement;
 		if (isFF()) {

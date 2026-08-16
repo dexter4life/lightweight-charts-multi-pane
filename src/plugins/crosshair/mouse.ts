@@ -34,6 +34,7 @@ export class MouseHandlers {
 	private _mouseLeaved: Delegate<null> = new Delegate();
 	private _mouseDown: Delegate<MousePositionEvent | null> = new Delegate();
 	private _mouseUp: Delegate<MousePositionEvent | null> = new Delegate();
+	private _isKeyDown: boolean = false;
 
 	attached(chart: IChartApi, series: ISeriesApi<SeriesType>) {
 		// Guard against re-entry: clean up previous listeners before re-adding
@@ -80,9 +81,7 @@ export class MouseHandlers {
 		handler: (event: MouseEvent) => void,
 	): void {
 		const boundMouseMoveHandler = handler.bind(this);
-		// Capture phase lets us intercept events before they reach the chart's
-		// internal canvas handler, so we can stop propagation during a drag
-		// and prevent the chart from panning simultaneously.
+
 		target.addEventListener(eventType, boundMouseMoveHandler, { capture: true });
 		const unSubscriber = () => {
 			target.removeEventListener(eventType, boundMouseMoveHandler, { capture: true });
@@ -91,7 +90,13 @@ export class MouseHandlers {
 	}
 
 	_mouseMove(event: MouseEvent) {
+		//prevent dragging of chart when the alt key is pressed
+		if (this._isKeyDown) {
+			event.stopPropagation();
+		}
+
 		const position = this._determineMousePosition(event);
+
 		if (position) {
 			this._mouseMoved.fire({ position, event });
 		} else {
@@ -99,12 +104,13 @@ export class MouseHandlers {
 		}
 	}
 
-	_mouseLeave(event: MouseEvent) {
+	_mouseLeave() {
 		this._mouseLeaved.fire(null);
 	}
 
 	_mouseDownHandler(event: MouseEvent) {
 		const position = this._determineMousePosition(event);
+
 		if (position) {
 			this._mouseDown.fire({ position, event });
 		} else {
@@ -139,5 +145,9 @@ export class MouseHandlers {
 			overPriceScale,
 			overTimeScale,
 		};
+	}
+
+	_setKeyState(state: boolean) {
+		this._isKeyDown = state;
 	}
 }

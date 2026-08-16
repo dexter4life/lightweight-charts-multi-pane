@@ -1,27 +1,27 @@
-import { ensureNotNull } from '../helpers/assertions';
-import { notNull } from '../helpers/strict-type-checks';
+import { ensureNotNull } from "../helpers/assertions";
+import { notNull } from "../helpers/strict-type-checks";
 
-import { LineStyle, LineWidth } from '../renderers/draw-line';
-import { CrosshairMarksPaneView } from '../views/pane/crosshair-marks-pane-view';
-import { CrosshairPaneView } from '../views/pane/crosshair-pane-view';
-import { IPaneView } from '../views/pane/ipane-view';
-import { CrosshairPriceAxisView } from '../views/price-axis/crosshair-price-axis-view';
-import { IPriceAxisView } from '../views/price-axis/iprice-axis-view';
-import { PriceAxisView } from '../views/price-axis/price-axis-view';
-import { CrosshairTimeAxisView } from '../views/time-axis/crosshair-time-axis-view';
-import { ITimeAxisView } from '../views/time-axis/itime-axis-view';
+import { LineStyle, LineWidth } from "../renderers/draw-line";
+import { CrosshairMarksPaneView } from "../views/pane/crosshair-marks-pane-view";
+import { CrosshairPaneView } from "../views/pane/crosshair-pane-view";
+import { IPaneView } from "../views/pane/ipane-view";
+import { CrosshairPriceAxisView } from "../views/price-axis/crosshair-price-axis-view";
+import { IPriceAxisView } from "../views/price-axis/iprice-axis-view";
+import { PriceAxisView } from "../views/price-axis/price-axis-view";
+import { CrosshairTimeAxisView } from "../views/time-axis/crosshair-time-axis-view";
+import { ITimeAxisView } from "../views/time-axis/itime-axis-view";
 
-import { BarPrice } from './bar';
-import { IChartModelBase } from './chart-model';
-import { Coordinate } from './coordinate';
-import { DataSource } from './data-source';
-import { InternalHorzScaleItem } from './ihorz-scale-behavior';
-import { ISeries } from './iseries';
-import { Pane } from './pane';
-import { MismatchDirection } from './plot-list';
-import { PriceScale } from './price-scale';
-import { SeriesType } from './series-options';
-import { TimePointIndex } from './time-data';
+import { BarPrice } from "./bar";
+import { IChartModelBase } from "./chart-model";
+import { Coordinate } from "./coordinate";
+import { DataSource } from "./data-source";
+import { InternalHorzScaleItem } from "./ihorz-scale-behavior";
+import { ISeries } from "./iseries";
+import { Pane } from "./pane";
+import { MismatchDirection } from "./plot-list";
+import { PriceScale } from "./price-scale";
+import { SeriesType } from "./series-options";
+import { TimePointIndex } from "./time-data";
 
 export interface CrosshairPriceAndCoordinate {
 	price: number;
@@ -33,7 +33,9 @@ export interface CrosshairTimeAndCoordinate {
 	coordinate: number;
 }
 
-export type PriceAndCoordinateProvider = (priceScale: PriceScale) => CrosshairPriceAndCoordinate;
+export type PriceAndCoordinateProvider = (
+	priceScale: PriceScale,
+) => CrosshairPriceAndCoordinate;
 export type TimeAndCoordinateProvider = () => CrosshairTimeAndCoordinate | null;
 
 /**
@@ -153,7 +155,8 @@ export class Crosshair extends DataSource {
 	private readonly _options: CrosshairOptions;
 
 	private _crosshairPaneViewCache: WeakMap<Pane, CrosshairPaneView> = new WeakMap();
-	private readonly _markersPaneViewCache: WeakMap<Pane, CrosshairMarksPaneView> = new WeakMap();
+	private readonly _markersPaneViewCache: WeakMap<Pane, CrosshairMarksPaneView> =
+		new WeakMap();
 	private _x: Coordinate = NaN as Coordinate;
 	private _y: Coordinate = NaN as Coordinate;
 
@@ -165,7 +168,10 @@ export class Crosshair extends DataSource {
 		this._model = model;
 		this._options = options;
 
-		const valuePriceProvider = (rawPriceProvider: RawPriceProvider, rawCoordinateProvider: RawCoordinateProvider) => {
+		const valuePriceProvider = (
+			rawPriceProvider: RawPriceProvider,
+			rawCoordinateProvider: RawCoordinateProvider,
+		) => {
 			return (priceScale: PriceScale) => {
 				const coordinate = rawCoordinateProvider();
 				const rawPrice = rawPriceProvider();
@@ -181,7 +187,10 @@ export class Crosshair extends DataSource {
 			};
 		};
 
-		const valueTimeProvider = (rawIndexProvider: RawIndexProvider, rawCoordinateProvider: RawCoordinateProvider) => {
+		const valueTimeProvider = (
+			rawIndexProvider: RawIndexProvider,
+			rawCoordinateProvider: RawCoordinateProvider,
+		) => {
 			return () => {
 				const time = this._model.timeScale().indexToTime(rawIndexProvider());
 				const coordinate = rawCoordinateProvider();
@@ -198,12 +207,12 @@ export class Crosshair extends DataSource {
 		// for current position always return both price and coordinate
 		this._currentPosPriceProvider = valuePriceProvider(
 			() => this._price as BarPrice,
-			() => this._y
+			() => this._y,
 		);
 
 		const currentPosTimeProvider = valueTimeProvider(
 			() => this._index,
-			() => this.appliedX()
+			() => this.appliedX(),
 		);
 
 		this._timeAxisView = new CrosshairTimeAxisView(this, model, currentPosTimeProvider);
@@ -310,7 +319,9 @@ export class Crosshair extends DataSource {
 		}
 
 		const x = timeScale.indexToCoordinate(index);
-		const distances = candidates.map((i: TimePointIndex) => Math.abs(x - timeScale.indexToCoordinate(i)));
+		const distances = candidates.map((i: TimePointIndex) =>
+			Math.abs(x - timeScale.indexToCoordinate(i)),
+		);
 		const minDistanceIndex = distances.indexOf(Math.min(...distances));
 		return candidates[minDistanceIndex];
 	}
@@ -344,7 +355,13 @@ export class Crosshair extends DataSource {
 
 		const views: IPriceAxisView[] = [];
 		if (this._pane === pane) {
-			views.push(this._createPriceAxisViewOnDemand(this._priceAxisViews, priceScale, this._currentPosPriceProvider));
+			views.push(
+				this._createPriceAxisViewOnDemand(
+					this._priceAxisViews,
+					priceScale,
+					this._currentPosPriceProvider,
+				),
+			);
 		}
 
 		return views;
@@ -381,7 +398,11 @@ export class Crosshair extends DataSource {
 		}
 	}
 
-	private _tryToUpdateData(newIndex: TimePointIndex, newPrice: number, newPane: Pane): boolean {
+	private _tryToUpdateData(
+		newIndex: TimePointIndex,
+		newPrice: number,
+		newPane: Pane,
+	): boolean {
 		const oldX = this._x;
 		const oldY = this._y;
 		const oldPrice = this._price;
@@ -390,7 +411,9 @@ export class Crosshair extends DataSource {
 		const priceScale = this._priceScaleByPane(newPane);
 
 		this._index = newIndex;
-		this._x = isNaN(newIndex) ? NaN as Coordinate : this._model.timeScale().indexToCoordinate(newIndex);
+		this._x = isNaN(newIndex)
+			? (NaN as Coordinate)
+			: this._model.timeScale().indexToCoordinate(newIndex);
 		this._pane = newPane;
 
 		const firstValue = priceScale !== null ? priceScale.firstValue() : null;
@@ -402,19 +425,30 @@ export class Crosshair extends DataSource {
 			this._y = NaN as Coordinate;
 		}
 
-		return (oldX !== this._x || oldY !== this._y || oldIndex !== this._index ||
-			oldPrice !== this._price || oldPane !== this._pane);
+		return (
+			oldX !== this._x ||
+			oldY !== this._y ||
+			oldIndex !== this._index ||
+			oldPrice !== this._price ||
+			oldPane !== this._pane
+		);
 	}
 
 	private _setIndexToLastSeriesBarIndex(): void {
-		const lastIndexes = this._model.serieses()
+		const lastIndexes = this._model
+			.serieses()
 			.map((s: ISeries<SeriesType>) => s.bars().lastIndex())
 			.filter(notNull);
-		const lastBarIndex = (lastIndexes.length === 0) ? null : (Math.max(...lastIndexes) as TimePointIndex);
-		this._index = lastBarIndex !== null ? lastBarIndex : NaN as TimePointIndex;
+		const lastBarIndex =
+			lastIndexes.length === 0 ? null : (Math.max(...lastIndexes) as TimePointIndex);
+		this._index = lastBarIndex !== null ? lastBarIndex : (NaN as TimePointIndex);
 	}
 
-	private _createPriceAxisViewOnDemand(map: Map<PriceScale, CrosshairPriceAxisView>, priceScale: PriceScale, valueProvider: PriceAndCoordinateProvider): IPriceAxisView {
+	private _createPriceAxisViewOnDemand(
+		map: Map<PriceScale, CrosshairPriceAxisView>,
+		priceScale: PriceScale,
+		valueProvider: PriceAndCoordinateProvider,
+	): IPriceAxisView {
 		let view = map.get(priceScale);
 
 		if (view === undefined) {

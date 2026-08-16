@@ -1,19 +1,19 @@
 import { IChartApi } from "../../api/create-chart";
 import { ISeriesApi } from "../../api/iseries-api";
 import {
-	ISeriesPrimitive,
-	SeriesAttachedParameter,
+    ISeriesPrimitive,
+    SeriesAttachedParameter,
 } from "../../api/iseries-primitive-api";
 import { Time } from "../../model/horz-scale-behavior-time/types";
 import { IPrimitivePaneView, PrimitiveHoveredItem } from "../../model/ipane-primitive";
 import { SeriesType } from "../../model/series-options";
 import { MouseHandlers, MousePosition } from "../../plugins/price-alert/mouse";
+import type { PartialOptions } from "../shared/partial-options";
 import {
-	clockIconPaths,
-	clockPlusIconPaths,
-	defaultPriceAlertsOptions,
-	PartialOptions,
-	PriceAlertsOptions,
+    clockIconPaths,
+    clockPlusIconPaths,
+    defaultPriceAlertsOptions,
+    PriceAlertsOptions,
 } from "./constants";
 import { AlertRendererData, IRendererData } from "./irenderer-data";
 import { UserAlertPricePaneView } from "./pane-view";

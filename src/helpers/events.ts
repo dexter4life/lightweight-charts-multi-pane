@@ -6,9 +6,7 @@ export function preventScrollByWheelClick(el: HTMLElement): void {
 	}
 
 	el.addEventListener('mousedown', (e: MouseEvent) => {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
-		if (e.button === MouseEventButton.Middle) {
-			// prevent incorrect scrolling event
+		if (e.button === 1) {
 			e.preventDefault();
 			return false;
 		}

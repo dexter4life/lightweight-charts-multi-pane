@@ -33,7 +33,11 @@ export function hoveredSeriesHitTestResult(
 	priority: HitTestPriority,
 	itemType: InternalHitTestCandidate['itemType']
 ): InternalHitTestCandidate {
-	return { distance, priority, itemType };
+	// Fork behavior: show the pointer (hand) cursor when hovering over any
+	// built-in series element (candles, lines, histograms, area, markers) to
+	// match TradingView.com. Upstream lightweight-charts leaves this
+	// `undefined` (neutral); the fork opts into pointer-on-series hover.
+	return { distance, priority, itemType, cursorStyle: 'pointer' };
 }
 
 export function isWithinHorizontalSweep(x: number, left: number, right: number, radius: number): boolean {
