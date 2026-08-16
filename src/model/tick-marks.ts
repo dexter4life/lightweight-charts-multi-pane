@@ -57,6 +57,45 @@ export class TickMarks<HorzScaleItem> {
 		}
 	}
 
+	/**
+	 * Add points with explicit indices (supports negative indices for projected past points).
+	 * Same pattern as setTimeScalePoints but each point carries its own index.
+	 * Each weight array is kept sorted ascending by index.
+	 */
+	public addPointsWithIndices(points: readonly TimeScalePoint[], indexOffset: number): void {
+		this._cache = null;
+
+		for (let i = 0; i < points.length; ++i) {
+			const point = points[i];
+			const markIndex = (indexOffset + i) as TimePointIndex;
+			let marksForWeight = this._marksByWeight.get(point.timeWeight);
+			if (marksForWeight === undefined) {
+				marksForWeight = [];
+				this._marksByWeight.set(point.timeWeight, marksForWeight);
+			}
+
+			marksForWeight.push({
+				index: markIndex,
+				time: point.time,
+				weight: point.timeWeight,
+				originalTime: point.originalTime,
+			});
+		}
+
+		// Sort each weight array ascending by index — _buildMarksImpl assumes sorted input.
+		this._marksByWeight.forEach((marks: TickMark[]) => {
+			marks.sort((a: TickMark, b: TickMark) => a.index - b.index);
+		});
+	}
+
+	/**
+	 * Remove all marks — used when projected points need to be regenerated.
+	 */
+	public clear(): void {
+		this._marksByWeight.clear();
+		this._cache = null;
+	}
+
 	public build(spacing: number, maxWidth: number, checkIndicesForData: boolean, indicesWithDataMap: Map<TimePointIndex, boolean>, indicesWithDataId: number): readonly TickMark[] {
 		const maxIndexesPerMark = Math.ceil(maxWidth / spacing);
 		if (

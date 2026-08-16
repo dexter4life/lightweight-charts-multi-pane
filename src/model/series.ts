@@ -40,13 +40,13 @@ import { PriceScale } from './price-scale';
 import { SeriesBarColorer } from './series-bar-colorer';
 import { createSeriesPlotList, SeriesPlotList, SeriesPlotRow } from './series-data';
 import {
-	AreaStyleOptions,
-	BaselineStyleOptions,
-	HistogramStyleOptions,
-	LineStyleOptions,
-	SeriesOptionsMap,
-	SeriesPartialOptionsMap,
-	SeriesType,
+    AreaStyleOptions,
+    BaselineStyleOptions,
+    HistogramStyleOptions,
+    LineStyleOptions,
+    SeriesOptionsMap,
+    SeriesPartialOptionsMap,
+    SeriesType,
 } from './series-options';
 import { ISeriesPrimitivePaneViewWrapper, SeriesPrimitiveWrapper } from './series-primitive-wrapper';
 import { ISeriesCustomPaneView } from './series/pane-view';
@@ -338,7 +338,16 @@ export class Series<T extends SeriesType> extends PriceDataSource implements IDe
 		}
 
 		const startTimePoint = visibleBars.left();
-		return this._data.search(startTimePoint, MismatchDirection.NearestRight);
+		const bar = this._data.search(startTimePoint, MismatchDirection.NearestRight);
+
+		// When scrolled into the projected time area (past or future),
+		// NearestRight may return null. Fall back to the last real bar
+		// so the price scale retains a valid base value for coordinate conversion.
+		if (bar === null && !this._data.isEmpty()) {
+			return this._data.last();
+		}
+
+		return bar;
 	}
 
 	public bars(): SeriesPlotList<T> {

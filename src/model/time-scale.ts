@@ -3,11 +3,13 @@ import { ensureNotNull } from '../helpers/assertions';
 import { Delegate } from '../helpers/delegate';
 import { ISubscription } from '../helpers/isubscription';
 import { clamp } from '../helpers/mathex';
+import { Mutable } from '../helpers/mutable';
 import { DeepPartial, isInteger, merge } from '../helpers/strict-type-checks';
 
 import { ChartModel } from './chart-model';
 import { Coordinate } from './coordinate';
 import { FormattedLabelsCache } from './formatted-labels-cache';
+import { fillWeightsForPoints } from './horz-scale-behavior-time/time-scale-point-weight-generator';
 import { IHorzScaleBehavior, InternalHorzScaleItem, InternalHorzScaleItemKey } from './ihorz-scale-behavior';
 import { LocalizationOptions } from './localization-options';
 import { areRangesEqual, RangeImpl } from './range-impl';
@@ -348,6 +350,14 @@ export class TimeScale<HorzScaleItem> implements ITimeScale {
 
 	private _conflationFactor: number = 1;
 
+	// Projected time points for past (negative indices) and future (beyond _points.length).
+	// _points is never modified — these are separate arrays read by the time scale methods.
+	private _projectedPast: TimeScalePoint[] = [];
+	private _projectedFuture: TimeScalePoint[] = [];
+	private _projectedTickMarks: TickMarks<HorzScaleItem> = new TickMarks();
+	private _barIntervalSeconds: number | null = null;
+	private _projectedCacheInvalidated: boolean = true;
+
 	private readonly _horzScaleBehavior: IHorzScaleBehavior<HorzScaleItem>;
 
 	public constructor(model: ChartModel<HorzScaleItem>, options: HorzScaleOptions, localizationOptions: LocalizationOptions<HorzScaleItem>, horzScaleBehavior: IHorzScaleBehavior<HorzScaleItem>) {
@@ -420,11 +430,24 @@ export class TimeScale<HorzScaleItem> implements ITimeScale {
 	}
 
 	public indexToTime(index: TimePointIndex): InternalHorzScaleItem | null {
-		return this._points[index]?.time ?? null;
+		if (index >= 0 && index < this._points.length) {
+			return this._points[index]?.time ?? null;
+		}
+		if (this._barIntervalSeconds !== null) {
+			const point = this._projectedPointAt(index);
+			return point?.time ?? null;
+		}
+		return null;
 	}
 
 	public indexToTimeScalePoint(index: TimePointIndex): TimeScalePoint | null {
-		return this._points[index] ?? null;
+		if (index >= 0 && index < this._points.length) {
+			return this._points[index] ?? null;
+		}
+		if (this._barIntervalSeconds !== null) {
+			return this._projectedPointAt(index);
+		}
+		return null;
 	}
 
 	public timeToIndex(time: InternalHorzScaleItem, findNearest: boolean): TimePointIndex | null {
@@ -433,14 +456,33 @@ export class TimeScale<HorzScaleItem> implements ITimeScale {
 			return null;
 		}
 
-		if (this._horzScaleBehavior.key(time) > this._horzScaleBehavior.key(this._points[this._points.length - 1].time)) {
+		const timeKey = this._horzScaleBehavior.key(time);
+		const firstKey = this._horzScaleBehavior.key(this._points[0].time);
+		const lastKey = this._horzScaleBehavior.key(this._points[this._points.length - 1].time);
+
+		// Extrapolate index for times outside real data range
+		if (!findNearest && this._barIntervalSeconds !== null) {
+			if (timeKey < firstKey) {
+				const firstTs = firstKey as unknown as number;
+				const targetTs = timeKey as unknown as number;
+				return Math.round((targetTs - firstTs) / this._barIntervalSeconds) as TimePointIndex;
+			}
+			if (timeKey > lastKey) {
+				const lastIndex = this._points.length - 1;
+				const lastTs = lastKey as unknown as number;
+				const targetTs = timeKey as unknown as number;
+				return (lastIndex + Math.round((targetTs - lastTs) / this._barIntervalSeconds)) as TimePointIndex;
+			}
+		}
+
+		if (timeKey > lastKey) {
 			// special case
 			return findNearest ? this._points.length - 1 as TimePointIndex : null;
 		}
 
-		const index = lowerBound(this._points, this._horzScaleBehavior.key(time), (a: TimeScalePoint, b: InternalHorzScaleItemKey) => this._horzScaleBehavior.key(a.time) < b);
+		const index = lowerBound(this._points, timeKey, (a: TimeScalePoint, b: InternalHorzScaleItemKey) => this._horzScaleBehavior.key(a.time) < b);
 
-		if (this._horzScaleBehavior.key(time) < this._horzScaleBehavior.key(this._points[index].time)) {
+		if (timeKey < this._horzScaleBehavior.key(this._points[index].time)) {
 			return findNearest ? index as TimePointIndex : null;
 		}
 
@@ -484,12 +526,17 @@ export class TimeScale<HorzScaleItem> implements ITimeScale {
 		const from = Math.round(range.from);
 		const to = Math.round(range.to);
 
-		const firstIndex = ensureNotNull(this._firstIndex());
-		const lastIndex = ensureNotNull(this._lastIndex());
+		// indexToTimeScalePoint returns projected points for out-of-range indices
+		// when bar interval is known. Fall back to real data bounds if projection
+		// doesn't cover the requested range.
+		const fromPoint = this.indexToTimeScalePoint(from as TimePointIndex);
+		const toPoint = this.indexToTimeScalePoint(to as TimePointIndex);
+		const firstIndex = this._firstIndex();
+		const lastIndex = this._lastIndex();
 
 		return {
-			from: ensureNotNull(this.indexToTimeScalePoint(Math.max(firstIndex, from) as TimePointIndex)),
-			to: ensureNotNull(this.indexToTimeScalePoint(Math.min(lastIndex, to) as TimePointIndex)),
+			from: ensureNotNull(fromPoint ?? (firstIndex !== null ? this.indexToTimeScalePoint(firstIndex) : null)),
+			to: ensureNotNull(toPoint ?? (lastIndex !== null ? this.indexToTimeScalePoint(lastIndex) : null)),
 		};
 	}
 
@@ -640,13 +687,32 @@ export class TimeScale<HorzScaleItem> implements ITimeScale {
 		const firstBar = Math.max(visibleBars.left(), visibleBars.left() - indexPerLabel);
 		const lastBar = Math.max(visibleBars.right(), visibleBars.right() - indexPerLabel);
 
-		const items = this._tickMarks.build(
+		let items = this._tickMarks.build(
 			spacing,
 			maxLabelWidth,
 			this._options.ignoreWhitespaceIndices,
 			this._indicesWithData,
 			this._indicesWithDataUpdateId
 		);
+
+		// Merge projected tick marks (past + future) through the same build() pipeline
+		// Extend projected points if the visible range exceeds the current buffer
+		if (this._barIntervalSeconds !== null) {
+			this._ensureProjectedCoverage(visibleBars);
+		}
+		if (this._barIntervalSeconds !== null && !this._projectedCacheInvalidated) {
+			const projectedItems = this._projectedTickMarks.build(
+				spacing,
+				maxLabelWidth,
+				false, // projected points have no series data — don't check indicesWithData
+				this._indicesWithData,
+				this._indicesWithDataUpdateId
+			);
+			if (projectedItems.length > 0) {
+				items = (items as readonly TickMark[]).concat(projectedItems);
+				items = items.slice().sort((a: TickMark, b: TickMark) => a.index - b.index);
+			}
+		}
 
 		// according to indexPerLabel value this value means "earliest index which _might be_ used as the second label on time scale"
 		const earliestIndexOfSecondLabel = (this._firstIndex() as number) + indexPerLabel;
@@ -852,6 +918,9 @@ export class TimeScale<HorzScaleItem> implements ITimeScale {
 
 		this._points = newPoints;
 		this._tickMarks.setTimeScalePoints(newPoints, firstChangedPointIndex);
+
+		this._updateProjectedPoints();
+
 		this._correctOffset();
 	}
 
@@ -1114,6 +1183,10 @@ export class TimeScale<HorzScaleItem> implements ITimeScale {
 	}
 
 	private _minRightOffset(): number | null {
+		if (this._barIntervalSeconds !== null) {
+			// Allow scrolling into projected past — no left edge clamp
+			return null;
+		}
 		const firstIndex = this._firstIndex();
 		const baseIndex = this._baseIndexOrNull;
 		if (firstIndex === null || baseIndex === null) {
@@ -1128,6 +1201,10 @@ export class TimeScale<HorzScaleItem> implements ITimeScale {
 	}
 
 	private _maxRightOffset(): number {
+		if (this._barIntervalSeconds !== null) {
+			// Allow scrolling into projected future — no right edge clamp
+			return Number.MAX_SAFE_INTEGER / 2;
+		}
 		return this._options.fixRightEdge
 			? 0
 			: (this._width / this._barSpacing) - Math.min(Constants.MinVisibleBarsCount, this._points.length);
@@ -1142,6 +1219,205 @@ export class TimeScale<HorzScaleItem> implements ITimeScale {
 
 	private _clearCommonTransitionsStartState(): void {
 		this._commonTransitionStartState = null;
+	}
+
+	/**
+	 * Compute the median bar interval (in seconds) from real _points.
+	 * Uses median for robustness against gaps/missing candles.
+	 */
+	private _computeBarInterval(): number | null {
+		if (this._points.length < 2) {
+			return null;
+	}
+		const sampleSize = Math.min(this._points.length - 1, 100);
+		const step = Math.max(1, Math.floor((this._points.length - 1) / sampleSize));
+		const diffs: number[] = [];
+		for (let i = 0; i < this._points.length - 1; i += step) {
+			const t1 = this._horzScaleBehavior.key(this._points[i].time) as unknown as number;
+			const t2 = this._horzScaleBehavior.key(this._points[i + 1].time) as unknown as number;
+			const diff = t2 - t1;
+			if (diff > 0) {
+				diffs.push(diff);
+			}
+		}
+		if (diffs.length === 0) {
+			return null;
+		}
+		diffs.sort((a: number, b: number) => a - b);
+		const mid = Math.floor(diffs.length / 2);
+		const median = diffs.length % 2 === 0 ? (diffs[mid - 1] + diffs[mid]) / 2 : diffs[mid];
+		// key() returns seconds for time-based scale (UTCTimestamp)
+		return median;
+	}
+
+	/**
+	 * Generate projected TimeScalePoint[] for past and future using the computed interval.
+	 * Points are fed through fillWeightsForPoints() for proper weight assignment,
+	 * then added to _projectedTickMarks via addPointsWithIndices() — same pipeline as real data.
+	 * _points is never modified.
+	 */
+	private _updateProjectedPoints(): void {
+		this._barIntervalSeconds = this._computeBarInterval();
+		if (this._barIntervalSeconds === null || this._points.length === 0) {
+			this._projectedPast = [];
+			this._projectedFuture = [];
+			this._projectedCacheInvalidated = true;
+			return;
+		}
+
+		const interval = this._barIntervalSeconds;
+		const firstTs = this._horzScaleBehavior.key(this._points[0].time) as unknown as number;
+		const lastTs = this._horzScaleBehavior.key(this._points[this._points.length - 1].time) as unknown as number;
+		const realCount = this._points.length;
+
+		const projectCount = Math.max(1000, realCount * 2);
+
+		// Generate past points (indices -projectCount..-1)
+		const pastPoints: TimeScalePoint[] = [];
+		for (let i = -projectCount; i < 0; i++) {
+			const ts = firstTs + i * interval;
+			pastPoints.push({
+				timeWeight: 0 as TickMarkWeightValue,
+				time: { timestamp: ts } as unknown as InternalHorzScaleItem,
+				originalTime: ts as unknown,
+			} as TimeScalePoint);
+		}
+
+		// Generate future points (indices realCount..realCount+projectCount-1)
+		const futurePoints: TimeScalePoint[] = [];
+		for (let i = 0; i < projectCount; i++) {
+			const ts = lastTs + (i + 1) * interval;
+			futurePoints.push({
+				timeWeight: 0 as TickMarkWeightValue,
+				time: { timestamp: ts } as unknown as InternalHorzScaleItem,
+				originalTime: ts as unknown,
+			} as TimeScalePoint);
+		}
+
+		// Compute weights using fillWeightsForPoints — same function used for real data.
+		// Past: include first real point as successor boundary so the last past point
+		// gets a proper weight comparing against real data.
+		const pastWithBoundary = [...pastPoints, this._points[0] as TimeScalePoint];
+		fillWeightsForPoints(pastWithBoundary as Mutable<TimeScalePoint>[], 0);
+		pastWithBoundary.pop();
+		this._projectedPast = pastPoints;
+
+		// Future: include last real point as predecessor boundary so the first future
+		// point gets a proper weight comparing against real data.
+		const futureWithBoundary = [this._points[realCount - 1] as TimeScalePoint, ...futurePoints];
+		fillWeightsForPoints(futureWithBoundary as Mutable<TimeScalePoint>[], 1);
+		futureWithBoundary.shift();
+		this._projectedFuture = futurePoints;
+
+		// Feed projected points into _projectedTickMarks using addPointsWithIndices.
+		// Past points get negative indices, future points get indices >= realCount.
+		this._projectedTickMarks.clear();
+		this._projectedTickMarks.setUniformDistribution(this._options.uniformDistribution);
+		this._projectedTickMarks.addPointsWithIndices(this._projectedPast, -this._projectedPast.length);
+		this._projectedTickMarks.addPointsWithIndices(this._projectedFuture, realCount);
+
+		this._projectedCacheInvalidated = false;
+		this._resetTimeMarksCache();
+	}
+
+	/**
+	 * Extend projected past/future points if the visible range exceeds the current buffer.
+	 * Generates additional points and feeds them through fillWeightsForPoints + addPointsWithIndices.
+	 */
+	private _ensureProjectedCoverage(visibleBars: RangeImpl<TimePointIndex>): void {
+		if (this._barIntervalSeconds === null || this._points.length === 0) {
+			return;
+		}
+
+		const interval = this._barIntervalSeconds;
+		const realCount = this._points.length;
+		const firstTs = this._horzScaleBehavior.key(this._points[0].time) as unknown as number;
+		const lastTs = this._horzScaleBehavior.key(this._points[realCount - 1].time) as unknown as number;
+
+		let extended = false;
+
+		// Check if past buffer needs extension
+		const pastNeeded = -Math.floor(visibleBars.left());
+		if (pastNeeded > this._projectedPast.length) {
+			// Generate additional past points from -pastNeeded to -(currentPastLen+1)
+			const currentPastLen = this._projectedPast.length;
+			const additionalPast: TimeScalePoint[] = [];
+			for (let i = -pastNeeded; i < -currentPastLen; i++) {
+				const ts = firstTs + i * interval;
+				additionalPast.push({
+					timeWeight: 0 as TickMarkWeightValue,
+					time: { timestamp: ts } as unknown as InternalHorzScaleItem,
+					originalTime: ts as unknown,
+				} as TimeScalePoint);
+			}
+			if (additionalPast.length > 0) {
+				// Compute weights: boundary is the oldest existing past point (or first real point)
+				const boundary = currentPastLen > 0
+					? this._projectedPast[0]
+					: this._points[0] as TimeScalePoint;
+				const withBoundary = [...additionalPast, boundary];
+				fillWeightsForPoints(withBoundary as Mutable<TimeScalePoint>[], 0);
+				withBoundary.pop();
+				// Prepend additional past points to _projectedPast
+				this._projectedPast = [...additionalPast, ...this._projectedPast];
+				// Add to tick marks with correct indices
+				this._projectedTickMarks.addPointsWithIndices(additionalPast, -pastNeeded);
+				extended = true;
+			}
+		}
+
+		// Check if future buffer needs extension
+		const futureNeeded = Math.ceil(visibleBars.right()) - realCount + 1;
+		if (futureNeeded > this._projectedFuture.length) {
+			const currentFutureLen = this._projectedFuture.length;
+			const additionalFuture: TimeScalePoint[] = [];
+			for (let i = currentFutureLen; i < futureNeeded; i++) {
+				const ts = lastTs + (i + 1) * interval;
+				additionalFuture.push({
+					timeWeight: 0 as TickMarkWeightValue,
+					time: { timestamp: ts } as unknown as InternalHorzScaleItem,
+					originalTime: ts as unknown,
+				} as TimeScalePoint);
+			}
+			if (additionalFuture.length > 0) {
+				// Compute weights: boundary is the last existing future point (or last real point)
+				const boundary = currentFutureLen > 0
+					? this._projectedFuture[currentFutureLen - 1]
+					: this._points[realCount - 1] as TimeScalePoint;
+				const withBoundary = [boundary, ...additionalFuture];
+				fillWeightsForPoints(withBoundary as Mutable<TimeScalePoint>[], currentFutureLen > 0 ? 1 : 0);
+				withBoundary.shift();
+				// Append additional future points to _projectedFuture
+				this._projectedFuture = [...this._projectedFuture, ...additionalFuture];
+				// Add to tick marks with correct indices
+				this._projectedTickMarks.addPointsWithIndices(additionalFuture, realCount + currentFutureLen);
+				extended = true;
+			}
+		}
+
+		if (extended) {
+			this._resetTimeMarksCache();
+		}
+	}
+
+	/**
+	 * Look up a projected TimeScalePoint at a given (out-of-range) index.
+	 */
+	private _projectedPointAt(index: TimePointIndex): TimeScalePoint | null {
+		if (this._projectedPast.length > 0 && index < 0) {
+			const pastLen = this._projectedPast.length;
+			const arrIdx = index + pastLen;
+			if (arrIdx >= 0 && arrIdx < pastLen) {
+				return this._projectedPast[arrIdx];
+			}
+		}
+		if (this._projectedFuture.length > 0 && index >= this._points.length) {
+			const arrIdx = index - this._points.length;
+			if (arrIdx >= 0 && arrIdx < this._projectedFuture.length) {
+				return this._projectedFuture[arrIdx];
+			}
+		}
+		return null;
 	}
 
 	private _formatLabel(tickMark: TickMark): string {
