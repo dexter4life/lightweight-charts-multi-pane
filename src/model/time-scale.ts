@@ -356,7 +356,6 @@ export class TimeScale<HorzScaleItem> implements ITimeScale {
 	private _projectedFuture: TimeScalePoint[] = [];
 	private _projectedTickMarks: TickMarks<HorzScaleItem> = new TickMarks();
 	private _barIntervalSeconds: number | null = null;
-	private _projectedCacheInvalidated: boolean = true;
 
 	private readonly _horzScaleBehavior: IHorzScaleBehavior<HorzScaleItem>;
 
@@ -687,31 +686,32 @@ export class TimeScale<HorzScaleItem> implements ITimeScale {
 		const firstBar = Math.max(visibleBars.left(), visibleBars.left() - indexPerLabel);
 		const lastBar = Math.max(visibleBars.right(), visibleBars.right() - indexPerLabel);
 
-		let items = this._tickMarks.build(
-			spacing,
-			maxLabelWidth,
-			this._options.ignoreWhitespaceIndices,
-			this._indicesWithData,
-			this._indicesWithDataUpdateId
-		);
-
-		// Merge projected tick marks (past + future) through the same build() pipeline
-		// Extend projected points if the visible range exceeds the current buffer
-		if (this._barIntervalSeconds !== null) {
+		// Build all marks (real + projected) in a single TickMarks instance so the
+		// weight-based spacing algorithm sees everything together — prevents uneven
+		// gaps at the boundary between real and projected data.
+		let items: readonly TickMark[];
+		if (this._barIntervalSeconds !== null && this._points.length >= 2) {
 			this._ensureProjectedCoverage(visibleBars);
-		}
-		if (this._barIntervalSeconds !== null && !this._projectedCacheInvalidated) {
-			const projectedItems = this._projectedTickMarks.build(
+			const combined = new TickMarks<HorzScaleItem>();
+			combined.setUniformDistribution(this._options.uniformDistribution);
+			combined.addPointsWithIndices(this._points as TimeScalePoint[], 0);
+			combined.addPointsWithIndices(this._projectedPast, -this._projectedPast.length);
+			combined.addPointsWithIndices(this._projectedFuture, this._points.length);
+			items = combined.build(
 				spacing,
 				maxLabelWidth,
-				false, // projected points have no series data — don't check indicesWithData
+				this._options.ignoreWhitespaceIndices,
 				this._indicesWithData,
 				this._indicesWithDataUpdateId
 			);
-			if (projectedItems.length > 0) {
-				items = (items as readonly TickMark[]).concat(projectedItems);
-				items = items.slice().sort((a: TickMark, b: TickMark) => a.index - b.index);
-			}
+		} else {
+			items = this._tickMarks.build(
+				spacing,
+				maxLabelWidth,
+				this._options.ignoreWhitespaceIndices,
+				this._indicesWithData,
+				this._indicesWithDataUpdateId
+			);
 		}
 
 		// according to indexPerLabel value this value means "earliest index which _might be_ used as the second label on time scale"
@@ -1261,7 +1261,6 @@ export class TimeScale<HorzScaleItem> implements ITimeScale {
 		if (this._barIntervalSeconds === null || this._points.length === 0) {
 			this._projectedPast = [];
 			this._projectedFuture = [];
-			this._projectedCacheInvalidated = true;
 			return;
 		}
 
@@ -1316,7 +1315,6 @@ export class TimeScale<HorzScaleItem> implements ITimeScale {
 		this._projectedTickMarks.addPointsWithIndices(this._projectedPast, -this._projectedPast.length);
 		this._projectedTickMarks.addPointsWithIndices(this._projectedFuture, realCount);
 
-		this._projectedCacheInvalidated = false;
 		this._resetTimeMarksCache();
 	}
 
