@@ -42,6 +42,7 @@ import { createCustomSeriesDefinition } from "../model/series/custom-series";
 import { SeriesDefinition, isSeriesDefinition } from "../model/series/series-def";
 import { Logical } from "../model/time-data";
 
+import { DatafeedController } from "./datafeed-controller";
 import { getSeriesDataCreator } from "./get-series-data-creator";
 import {
 	HoveredInfo,
@@ -157,6 +158,9 @@ export class ChartApi<HorzScaleItem>
 	private readonly _timeScaleApi: TimeScaleApi<HorzScaleItem>;
 	private readonly _panes: WeakMap<Pane, PaneApi<HorzScaleItem>> = new WeakMap();
 
+	/** Drives the bound series from the `datafeed` chart option, if set. */
+	private _datafeedController: DatafeedController | null = null;
+
 	public constructor(
 		container: HTMLElement,
 		horzScaleBehavior: IHorzScaleBehavior<HorzScaleItem>,
@@ -202,12 +206,28 @@ export class ChartApi<HorzScaleItem>
 			this._chartWidget.timeAxisWidget(),
 			this._horzScaleBehavior,
 		);
+
+		// If a datafeed was supplied via options, create the controller now. It
+		// binds to the first series added via addSeries (first-series rule).
+		// The datafeed contract is time-based, so we cast to the time-typed
+		// IChartApi — the controller only uses timeScale() + series methods that
+		// exist on IChartApiBase regardless of the HorzScaleItem type parameter.
+		if (options?.datafeed && options?.datafeedOptions) {
+			this._datafeedController = new DatafeedController(
+				this as unknown as any,
+				options.datafeed as any,
+				options.datafeedOptions as any,
+			);
+		}
 	}
 
 	public remove(): void {
 		this._chartWidget.clicked().unsubscribeAll(this);
 		this._chartWidget.dblClicked().unsubscribeAll(this);
 		this._chartWidget.crosshairMoved().unsubscribeAll(this);
+
+		this._datafeedController?.destroy();
+		this._datafeedController = null;
 
 		this._timeScaleApi.destroy();
 		this._chartWidget.destroy();
@@ -334,6 +354,10 @@ export class ChartApi<HorzScaleItem>
 		return this._timeScaleApi;
 	}
 
+	public datafeedController(): DatafeedController | null {
+		return this._datafeedController;
+	}
+
 	public applyOptions(options: DeepPartial<ChartOptionsImpl<HorzScaleItem>>): void {
 		if (process.env.NODE_ENV === "development") {
 			const colorSpace = options.layout?.colorSpace;
@@ -353,6 +377,21 @@ export class ChartApi<HorzScaleItem>
 			}
 		}
 		this._chartWidget.applyOptions(toInternalOptions(options));
+
+		// Support a late-applied datafeed option: if no controller exists yet
+		// and the caller supplies both `datafeed` and `datafeedOptions`, create
+		// one and bind to the first existing series (if any).
+		if (!this._datafeedController && options?.datafeed && options?.datafeedOptions) {
+			this._datafeedController = new DatafeedController(
+				this as unknown as any,
+				options.datafeed as any,
+				options.datafeedOptions as any,
+			);
+			const firstApi = this._seriesMap.keys().next();
+			if (!firstApi.done && firstApi.value) {
+				this._datafeedController.bindSeries(firstApi.value as any);
+			}
+		}
 	}
 
 	public options(): Readonly<ChartOptionsImpl<HorzScaleItem>> {
@@ -617,6 +656,12 @@ export class ChartApi<HorzScaleItem>
 		);
 		this._seriesMap.set(res, series);
 		this._seriesMapReversed.set(series, res);
+
+		// Bind the datafeed controller to the first series added (first-series
+		// rule). Subsequent series are treated as overlays/indicators.
+		if (this._datafeedController && !this._datafeedController.boundSeries) {
+			this._datafeedController.bindSeries(res as any);
+		}
 
 		return res;
 	}

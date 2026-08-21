@@ -37,6 +37,15 @@ export { createChart, createChartEx, defaultHorzScaleBehavior } from "./api/crea
 export type { IChartApi } from "./api/create-chart";
 export { createOptionsChart } from "./api/create-options-chart";
 export { createYieldCurveChart } from "./api/create-yield-curve-chart";
+export type {
+    DatafeedBar,
+    DatafeedBarsListener,
+    DatafeedOptions,
+    DatafeedPeriodParams,
+    DatafeedSymbolInfo,
+    IDatafeedChartApi
+} from "./api/datafeed-api";
+export { DatafeedController } from "./api/datafeed-controller";
 export type { ISeriesApi } from "./api/iseries-api";
 
 export { areaSeries as AreaSeries } from "./model/series/area-series";

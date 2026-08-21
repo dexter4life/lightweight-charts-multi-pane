@@ -22,6 +22,10 @@ import { ISeries } from './iseries';
 import { ColorType, LayoutOptions } from './layout-options';
 import { LocalizationOptions, LocalizationOptionsBase } from './localization-options';
 import { Magnet } from './magnet';
+
+// `import type` keeps the datafeed option types eraseable at compile time,
+// so this file (which the api layer imports) does not create a runtime cycle.
+import type { DatafeedOptions, IDatafeedChartApi } from '../api/datafeed-api';
 import { DEFAULT_STRETCH_FACTOR, MIN_PANE_HEIGHT, Pane } from './pane';
 import { hitTestPane } from './pane-hit-test';
 import { Point } from './point';
@@ -379,6 +383,28 @@ export interface ChartOptionsBase {
 	 * @defaultValue `true`
 	 */
 	hoveredSeriesOnTop: boolean;
+
+	/**
+	 * Optional datafeed that drives a chart series' data automatically.
+	 *
+	 * When provided, the chart's {@link DatafeedController} binds to the first series added via
+	 * `chart.addSeries(...)` and:
+	 *   - loads initial bars (`getBars`)
+	 *   - subscribes to realtime updates (`subscribeBars`) → `series.update`
+	 *   - on scroll-back past the visible range, fetches older bars and prepends them via
+	 *     `series.setData`
+	 *
+	 * The chart library does not import any transport — the concrete `IDatafeedChartApi`
+	 * is supplied by the host application (e.g. wrapping a SharedWorker).
+	 *
+	 * @defaultValue undefined (no datafeed; the caller is responsible for `series.setData`)
+	 */
+	datafeed?: IDatafeedChartApi;
+
+	/**
+	 * Options for the {@link ChartOptionsBase.datafeed} option. Ignored when `datafeed` is unset.
+	 */
+	datafeedOptions?: DatafeedOptions;
 }
 
 /**

@@ -7,10 +7,10 @@ import { CustomData, ICustomSeriesPaneView } from "../model/icustom-series";
 import { IHorzScaleBehavior } from "../model/ihorz-scale-behavior";
 import { Point } from "../model/point";
 import {
-	CustomSeriesOptions,
-	SeriesPartialOptions,
-	SeriesPartialOptionsMap,
-	SeriesType,
+    CustomSeriesOptions,
+    SeriesPartialOptions,
+    SeriesPartialOptionsMap,
+    SeriesType,
 } from "../model/series-options";
 import { SeriesDefinition } from "../model/series/series-def";
 import { Logical } from "../model/time-data";
@@ -314,6 +314,16 @@ export interface IChartApiBase<HorzScaleItem = Time> {
 	 * @returns Target API
 	 */
 	timeScale(): ITimeScaleApi<HorzScaleItem>;
+
+	/**
+	 * Returns the datafeed controller bound to this chart, or `null` if no
+	 * `datafeed` option was supplied. Consumers (e.g. a React chart component)
+	 * can subscribe to {@link DatafeedController.onBars} to mirror the bar
+	 * array for legend/replay without touching the series directly.
+	 *
+	 * @returns the controller, or `null`.
+	 */
+	datafeedController(): import('./datafeed-controller').DatafeedController | null;
 
 	/**
 	 * Applies new options to the chart
