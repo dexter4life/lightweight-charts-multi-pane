@@ -4,11 +4,11 @@ import { CandlestickSeries, LineStyle } from "../index";
 import { CrosshairMode } from "../model/crosshair";
 import type { CandlestickData } from "../model/data-consumer";
 import type { Time } from "../model/horz-scale-behavior-time/types";
-import { Crosshair } from "../plugins/crosshair/index";
 import { CrosshairPluginOptions, CrosshairType } from "../plugins/crosshair/state";
 
 function mountCrosshairTypeStory(
 	crosshairOption: CrosshairPluginOptions,
+	captureFocus: boolean = false,
 ): HTMLDivElement {
 	const { container, chart } = mountPluginChart({
 		layout: {
@@ -24,24 +24,10 @@ function mountCrosshairTypeStory(
 				visible: false,
 			},
 		},
-		timeScale: {
-			borderVisible: false,
-		},
-		rightPriceScale: {
-			borderVisible: false,
-		},
 		crosshair: {
-			horzLine: {
-				visible: false,
-				labelVisible: false,
-			},
-			vertLine: {
-				labelVisible: false,
-				style: LineStyle.Solid,
-				visible: false,
-				width: 1,
-			},
+			...crosshairOption,
 		},
+		captureFocus,
 	});
 
 	const series = chart.addSeries(CandlestickSeries, {
@@ -56,11 +42,11 @@ function mountCrosshairTypeStory(
 	series.setData(data as CandlestickData<Time>[]);
 	chart.timeScale().fitContent();
 
-	const crosshair = new Crosshair(crosshairOption);
-	series.attachPrimitive(crosshair);
-	crosshair.setHasFocus(true);
+	// const crosshair = new Crosshair(crosshairOption);
+	// // series.attachPrimitive(crosshair);
+	// // crosshair.setHasFocus(true);
 
-	(window as any).__crosshair = { chart, series, crosshair, data };
+	// (window as any).__crosshair = { chart, series, crosshair, data };
 
 	return container;
 }
@@ -90,7 +76,7 @@ const crosshairOption: CrosshairPluginOptions = {
 	vertLine: {
 		color: "#758696",
 		width: 1,
-		style: LineStyle.Solid,
+		style: LineStyle.LargeDashed,
 		visible: true,
 		labelVisible: true,
 		labelBackgroundColor: "#4c525e",
@@ -124,8 +110,11 @@ export const Arrow: Story = {
 
 export const Demonstration: Story = {
 	render: () =>
-		mountCrosshairTypeStory({
-			...crosshairOption,
-			type: CrosshairType.Demo,
-		}),
+		mountCrosshairTypeStory(
+			{
+				...crosshairOption,
+				type: CrosshairType.Demo,
+			},
+			true,
+		),
 };

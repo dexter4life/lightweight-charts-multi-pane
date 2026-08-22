@@ -11,7 +11,7 @@ import { PriceAxisRendererOptionsProvider } from '../renderers/price-axis-render
 
 import { ColorParser } from './colors';
 import { Coordinate } from './coordinate';
-import { Crosshair, CrosshairOptions } from './crosshair';
+import { Crosshair, CrosshairMode, CrosshairOptions } from './crosshair';
 import { DefaultPriceScaleId, isDefaultPriceScale } from './default-price-scale';
 import { GridOptions } from './grid';
 import { IPrimitiveHitTestSource } from './idata-source';
@@ -361,6 +361,18 @@ export interface ChartOptionsBase {
 	/** @inheritDoc TrackingModeOptions
 	 */
 	trackingMode: TrackingModeOptions;
+
+	/**
+	 * Whether the chart should capture keyboard focus automatically.
+	 *
+	 * When enabled, each pane canvas is made focusable via `tabindex="0"` and a
+	 * {@link KeyboardEventHandler} is attached to dispatch keyboard events to the
+	 * pane's keyboard handlers. When disabled (default) the chart remains
+	 * non-focusable and does not subscribe to keyboard events.
+	 *
+	 * @defaultValue `false`
+	 */
+	captureFocus: boolean;
 
 	/**
 	 * Basic localization options
@@ -928,7 +940,9 @@ export class ChartModel<HorzScaleItem> implements IDestroyable, IChartModelBase 
 		if (firstValue !== null) {
 			price = priceScale.coordinateToPrice(y, firstValue);
 		}
-		price = this._magnet.align(price, index, pane);
+		if(this.options().crosshair.mode == CrosshairMode.Magnet){
+			price = this._magnet.align(price, index, pane);
+		}
 
 		this._crosshair.setPosition(index, price, pane);
 

@@ -1,5 +1,6 @@
 import { ensureNotNull } from "../helpers/assertions";
 import { notNull } from "../helpers/strict-type-checks";
+import { CrosshairAnchorPaneView } from "../views/pane/crosshair-anchor-pane-view";
 
 import { LineStyle, LineWidth } from "../renderers/draw-line";
 import { CrosshairMarksPaneView } from "../views/pane/crosshair-marks-pane-view";
@@ -11,6 +12,8 @@ import { PriceAxisView } from "../views/price-axis/price-axis-view";
 import { CrosshairTimeAxisView } from "../views/time-axis/crosshair-time-axis-view";
 import { ITimeAxisView } from "../views/time-axis/itime-axis-view";
 
+import { PixelPoints } from "../renderers/pixel-points";
+import { CrosshairDemonstrationPaneView } from "../views/pane/crosshair-demonstration-pane-view";
 import { BarPrice } from "./bar";
 import { IChartModelBase } from "./chart-model";
 import { Coordinate } from "./coordinate";
@@ -37,6 +40,28 @@ export type PriceAndCoordinateProvider = (
 	priceScale: PriceScale,
 ) => CrosshairPriceAndCoordinate;
 export type TimeAndCoordinateProvider = () => CrosshairTimeAndCoordinate | null;
+
+export enum CrosshairType {
+	/**
+	 * This mode renders a cross-shaped crosshair marker at the cursor position.
+	 */
+	Cross = 0,
+
+	/**
+	 * This mode renders a dot-shaped crosshair marker at the cursor position.
+	 */
+	Dot = 1,
+
+	/**
+	 * This mode renders an arrow-shaped crosshair marker at the cursor position.
+	 */
+	Arrow = 2,
+
+	/**
+	 * This mode renders a demonstration crosshair marker for preview/demo purposes.
+	 */
+	Demo = 3,
+}
 
 /**
  * Represents the crosshair mode.
@@ -136,6 +161,18 @@ export interface CrosshairOptions {
 	 * @defaultValue `false`
 	 */
 	doNotSnapToHiddenSeriesIndices: boolean;
+
+	/**
+	 * Crosshair type, which controls the shape of the crosshair marker rendered at the cursor position.
+	 *
+	 * @defaultValue {@link CrosshairType.Cross}
+	 */
+	type?: CrosshairType;
+
+	anchor?: {
+		color?: string;
+		strokeColor?: string;
+	};
 }
 
 type RawPriceProvider = () => BarPrice;
@@ -153,15 +190,25 @@ export class Crosshair extends DataSource {
 	private _subscribed: boolean = false;
 	private readonly _currentPosPriceProvider: PriceAndCoordinateProvider;
 	private readonly _options: CrosshairOptions;
+	private _mouseDown: boolean = false;
+	private _mouseEnter: boolean = false;
+	private _strokes: PixelPoints[] = [];
 
 	private _crosshairPaneViewCache: WeakMap<Pane, CrosshairPaneView> = new WeakMap();
 	private readonly _markersPaneViewCache: WeakMap<Pane, CrosshairMarksPaneView> =
 		new WeakMap();
+	private readonly _anchorPaneViewCache: WeakMap<Pane, CrosshairAnchorPaneView> =
+		new WeakMap();
+	private readonly _demonstrationPaneViewCache: WeakMap<
+		Pane,
+		CrosshairDemonstrationPaneView
+	> = new WeakMap();
 	private _x: Coordinate = NaN as Coordinate;
 	private _y: Coordinate = NaN as Coordinate;
 
 	private _originX: Coordinate = NaN as Coordinate;
 	private _originY: Coordinate = NaN as Coordinate;
+	private _altKeyDown: boolean = false;
 
 	public constructor(model: IChartModelBase, options: CrosshairOptions) {
 		super();
@@ -248,6 +295,17 @@ export class Crosshair extends DataSource {
 		this._visible = true;
 
 		this._tryToUpdateViews(index, price, pane);
+		
+		if (this._mouseDown && this._altKeyDown && this._visible) {
+			const stroke = this._activeStroke();
+			if (stroke !== null) {
+				stroke.setPoints(index, price);
+			}
+		}
+	}
+
+	public appliedPrice(): number {
+		return this._price;
 	}
 
 	public appliedIndex(): TimePointIndex {
@@ -262,8 +320,24 @@ export class Crosshair extends DataSource {
 		return this._y;
 	}
 
+	public mouseDown(): boolean {
+		return this._mouseDown;
+	}
+
+	public mouseEnter(): boolean {
+		return this._mouseEnter;
+	}
+
 	public override visible(): boolean {
 		return this._visible;
+	}
+
+	public altKeyDown(): boolean {
+		return this._altKeyDown;
+	}
+
+	public setAltKeyDown(altKey: boolean) {
+		this._altKeyDown = altKey;
 	}
 
 	public clearPosition(): void {
@@ -277,6 +351,10 @@ export class Crosshair extends DataSource {
 
 		this.clearOriginCoord();
 		this.updateAllViews();
+	}
+
+	public pixelPoints() {
+		return this._strokes;
 	}
 
 	public snapToVisibleSeriesIfNeeded(index: TimePointIndex): TimePointIndex {
@@ -337,7 +415,20 @@ export class Crosshair extends DataSource {
 			markersPaneView = new CrosshairMarksPaneView(this._model, this, pane);
 			this._markersPaneViewCache.set(pane, markersPaneView);
 		}
-		return [crosshairPaneView, markersPaneView];
+
+		let anchorPaneView = this._anchorPaneViewCache.get(pane);
+		if (!anchorPaneView) {
+			anchorPaneView = new CrosshairAnchorPaneView(this, pane);
+			this._anchorPaneViewCache.set(pane, anchorPaneView);
+		}
+
+		let demonstrationPaneView = this._demonstrationPaneViewCache.get(pane);
+		if (!demonstrationPaneView) {
+			demonstrationPaneView = new CrosshairDemonstrationPaneView(this._model, this, pane);
+			this._demonstrationPaneViewCache.set(pane, demonstrationPaneView);
+		}
+
+		return [crosshairPaneView, markersPaneView, anchorPaneView, demonstrationPaneView];
 	}
 
 	public horzLineVisible(pane: Pane): boolean {
@@ -375,13 +466,58 @@ export class Crosshair extends DataSource {
 		return this._pane;
 	}
 
+	setMouseEnter(mouseState: boolean) {
+		this._mouseEnter = mouseState;
+	}
+
+	setMouseDown() {
+		this._mouseDown = true;
+
+		if (this._activeStroke() !== null) {
+			return;
+		}
+
+		this._strokes.push(
+			new PixelPoints(() => {
+				this.updateAllViews();
+				this._model.lightUpdate();
+			}, this.clearPixelPoints.bind(this)),
+		);
+	}
+
+	setMouseUp() {
+		this._mouseDown = false;
+
+		if (this._strokes.length > 0) {
+			this._strokes.forEach((stroke) => {
+				stroke.clear();
+			});
+		}
+	}
+
 	public updateAllViews(): void {
 		this._model.panes().forEach((pane: Pane) => {
 			this._crosshairPaneViewCache.get(pane)?.update();
 			this._markersPaneViewCache.get(pane)?.update();
+			this._anchorPaneViewCache.get(pane)?.update();
+			this._demonstrationPaneViewCache.get(pane)?.update();
 		});
 		this._priceAxisViews.forEach((value: PriceAxisView) => value.update());
 		this._timeAxisView.update();
+	}
+
+	public clearPixelPoints(pixelPoint: PixelPoints) {
+		this._strokes = this._strokes.filter((stroke) => stroke !== pixelPoint);
+	}
+
+	private _activeStroke(): PixelPoints | null {
+		for (let i = this._strokes.length - 1; i >= 0; i--) {
+			const stroke = this._strokes[i];
+			if (!stroke.erased && !stroke.isAnimating()) {
+				return stroke;
+			}
+		}
+		return null;
 	}
 
 	private _priceScaleByPane(pane: Pane): PriceScale | null {

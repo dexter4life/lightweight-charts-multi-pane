@@ -1,5 +1,5 @@
-import { BarPrice } from "@core/model/bar";
-import { MousePosition } from "@core/plugins/price-alert/mouse";
+import { BarPrice } from "../../model/bar";
+import { MousePosition } from "./mouse";
 
 /** Configurable visual options for the PriceAlerts plugin. */
 export interface PriceAlertsOptions {

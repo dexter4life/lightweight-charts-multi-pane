@@ -1,9 +1,12 @@
-import { Crosshair, CrosshairMode } from '../../model/crosshair';
-import { Pane } from '../../model/pane';
-import { CrosshairRenderer, CrosshairRendererData } from '../../renderers/crosshair-renderer';
-import { IPaneRenderer } from '../../renderers/ipane-renderer';
+import { Crosshair, CrosshairMode } from "../../model/crosshair";
+import { Pane } from "../../model/pane";
+import {
+	CrosshairRenderer,
+	CrosshairRendererData,
+} from "../../renderers/crosshair-renderer";
+import { IPaneRenderer } from "../../renderers/ipane-renderer";
 
-import { IPaneView } from './ipane-view';
+import { IPaneView } from "./ipane-view";
 
 export class CrosshairPaneView implements IPaneView {
 	private _invalidated: boolean = true;
@@ -13,13 +16,13 @@ export class CrosshairPaneView implements IPaneView {
 		vertLine: {
 			lineWidth: 1,
 			lineStyle: 0,
-			color: '',
+			color: "",
 			visible: false,
 		},
 		horzLine: {
 			lineWidth: 1,
 			lineStyle: 0,
-			color: '',
+			color: "",
 			visible: false,
 		},
 		x: 0,

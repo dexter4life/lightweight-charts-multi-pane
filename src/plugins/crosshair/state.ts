@@ -23,17 +23,17 @@ export enum CrosshairType {
 }
 
 export type CrosshairPluginOptions = CrosshairOptions & {
-	/**
-	 * Crosshair type, which controls the shape of the crosshair marker rendered at the cursor position.
-	 *
-	 * @defaultValue {@link CrosshairType.Cross}
-	 */
-	type: CrosshairType;
+	// /**
+	//  * Crosshair type, which controls the shape of the crosshair marker rendered at the cursor position.
+	//  *
+	//  * @defaultValue {@link CrosshairType.Cross}
+	//  */
+	// type: CrosshairType;
 
-	anchor: {
-		color?: string;
-		strokeColor?: string;
-	};
+	// anchor: {
+	// 	color?: string;
+	// 	strokeColor?: string;
+	// };
 };
 
 export class CrosshairState {

@@ -1,7 +1,13 @@
-import { BitmapCoordinatesRenderingScope } from 'fancy-canvas';
+import { BitmapCoordinatesRenderingScope } from "fancy-canvas";
 
-import { BitmapCoordinatesPaneRenderer } from './bitmap-coordinates-pane-renderer';
-import { drawHorizontalLine, drawVerticalLine, LineStyle, LineWidth, setLineStyle } from './draw-line';
+import { BitmapCoordinatesPaneRenderer } from "./bitmap-coordinates-pane-renderer";
+import {
+	drawHorizontalLine,
+	drawVerticalLine,
+	LineStyle,
+	LineWidth,
+	setLineStyle,
+} from "./draw-line";
 
 export interface CrosshairLineStyle {
 	lineStyle: LineStyle;
@@ -25,7 +31,12 @@ export class CrosshairRenderer extends BitmapCoordinatesPaneRenderer {
 		this._data = data;
 	}
 
-	protected override _drawImpl({ context: ctx, bitmapSize, horizontalPixelRatio, verticalPixelRatio }: BitmapCoordinatesRenderingScope): void {
+	protected override _drawImpl({
+		context: ctx,
+		bitmapSize,
+		horizontalPixelRatio,
+		verticalPixelRatio,
+	}: BitmapCoordinatesRenderingScope): void {
 		if (this._data === null) {
 			return;
 		}
@@ -40,7 +51,7 @@ export class CrosshairRenderer extends BitmapCoordinatesPaneRenderer {
 		const x = Math.round(this._data.x * horizontalPixelRatio);
 		const y = Math.round(this._data.y * verticalPixelRatio);
 
-		ctx.lineCap = 'butt';
+		ctx.lineCap = "butt";
 
 		if (vertLinesVisible && x >= 0) {
 			ctx.lineWidth = Math.floor(this._data.vertLine.lineWidth * horizontalPixelRatio);

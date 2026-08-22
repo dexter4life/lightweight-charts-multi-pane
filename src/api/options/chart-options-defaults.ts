@@ -60,5 +60,6 @@ export function chartOptionsDefaults<HorzScaleItem>(): ChartOptionsInternal<Horz
 		trackingMode: {
 			exitMode: TrackingModeExitMode.OnNextTap,
 		},
+		captureFocus: false,
 	};
 }

@@ -38,6 +38,11 @@ import {
 	ViewsGetter,
 } from "./draw-functions";
 import {
+	KeyboardEventHandler,
+	KeyboardEventHandlerEvent,
+	KeyboardEventHandlers,
+} from "./keyboard-event-handler";
+import {
 	MouseEventHandler,
 	MouseEventHandlerEventBase,
 	MouseEventHandlerMouseEvent,
@@ -83,7 +88,9 @@ interface StartScrollPosition extends Point {
 	localY: Coordinate;
 }
 
-export class PaneWidget implements IDestroyable, MouseEventHandlers {
+export class PaneWidget
+	implements IDestroyable, MouseEventHandlers, KeyboardEventHandlers
+{
 	private readonly _chart: IChartWidgetBase;
 	private _state: Pane | null;
 	private _size: Size = size({ width: 0, height: 0 });
@@ -98,6 +105,7 @@ export class PaneWidget implements IDestroyable, MouseEventHandlers {
 	private readonly _rowElement: HTMLElement;
 	private readonly _controlContainer: HTMLElement;
 	private readonly _mouseEventHandler: MouseEventHandler;
+	private readonly _keyboardEventHandler: KeyboardEventHandler | null;
 	private _startScrollingPos: StartScrollPosition | null = null;
 	private _isScrolling: boolean = false;
 	private _clicked: Delegate<TimePointIndex | null, Point, TouchMouseEventData> =
@@ -113,6 +121,7 @@ export class PaneWidget implements IDestroyable, MouseEventHandlers {
 	private _scrollXAnimation: KineticAnimation | null = null;
 
 	private _isSettingSize: boolean = false;
+	private _altKeyDown: boolean = false;
 
 	public constructor(chart: IChartWidgetBase, state: Pane) {
 		this._chart = chart;
@@ -186,6 +195,16 @@ export class PaneWidget implements IDestroyable, MouseEventHandlers {
 					!this._chart.options()["handleScroll"].horzTouchDrag,
 			},
 		);
+
+		if (this._chart.options().captureFocus) {
+			this._topCanvasBinding.canvasElement.setAttribute("tabindex", "0");
+			this._keyboardEventHandler = new KeyboardEventHandler(
+				this._topCanvasBinding.canvasElement,
+				this,
+			);
+		} else {
+			this._keyboardEventHandler = null;
+		}
 	}
 
 	public destroy(): void {
@@ -215,6 +234,8 @@ export class PaneWidget implements IDestroyable, MouseEventHandlers {
 		}
 
 		this._mouseEventHandler.destroy();
+
+		this._keyboardEventHandler?.destroy();
 	}
 
 	public state(): Pane {
@@ -315,12 +336,22 @@ export class PaneWidget implements IDestroyable, MouseEventHandlers {
 		const x = event.localX;
 		const y = event.localY;
 		this._setCrosshairPosition(x, y, event);
+
+		const crosshair = this._model().crosshairSource();
+		if (crosshair.visible()) {
+			crosshair.setMouseEnter(true);
+		}
 	}
 
 	public mouseDownEvent(event: MouseEventHandlerMouseEvent): void {
 		this._onMouseEvent();
 		this._mouseTouchDownEvent();
 		this._setCrosshairPosition(event.localX, event.localY, event);
+
+		const crosshair = this._model().crosshairSource();
+		if (crosshair.visible()) {
+			crosshair.setMouseDown();
+		}
 	}
 
 	public mouseMoveEvent(event: MouseEventHandlerMouseEvent): void {
@@ -362,6 +393,9 @@ export class PaneWidget implements IDestroyable, MouseEventHandlers {
 	}
 
 	public mouseUpEvent(event: MouseEventHandlerMouseEvent): void {
+		const crosshair = this._model().crosshairSource();
+		crosshair.setMouseUp();
+
 		if (this._state === null) {
 			return;
 		}
@@ -393,6 +427,12 @@ export class PaneWidget implements IDestroyable, MouseEventHandlers {
 			return;
 		}
 		this._onMouseEvent();
+
+		const crosshair = this._model().crosshairSource();
+		if (crosshair.visible() && this._altKeyDown) {
+			crosshair.setMouseEnter(false);
+			return;
+		}
 
 		this._state.model().setHoveredSource(null);
 		this._clearCrosshairPosition();
@@ -463,6 +503,26 @@ export class PaneWidget implements IDestroyable, MouseEventHandlers {
 		}
 		this._tryExitTrackingMode();
 		this._endScroll(event);
+	}
+
+	public keyDownEvent(event: KeyboardEventHandlerEvent): void {
+		this._altKeyDown = event.altKey;
+		this._model().crosshairSource().setAltKeyDown(this._altKeyDown);
+		this._model().updateCrosshair();
+	}
+
+	public altKeydown() {
+		return this._altKeyDown;
+	}
+
+	public keyUpEvent(event: KeyboardEventHandlerEvent): void {
+		this._altKeyDown = event.altKey;
+		this._model().crosshairSource().setAltKeyDown(this._altKeyDown);
+		this._model().updateCrosshair();
+	}
+
+	public keyPressEvent(_event: KeyboardEventHandlerEvent): void {
+		// intentionally empty: keyboard interaction wiring is handled by plugins/consumers.
 	}
 
 	public hitTest(x: Coordinate, y: Coordinate): HitTestResult | null {
@@ -882,6 +942,12 @@ export class PaneWidget implements IDestroyable, MouseEventHandlers {
 		const priceScale = this._state.defaultPriceScale();
 
 		const now = performance.now();
+
+		//prevent scrolling when the altkey and mouse is pressed
+		const crosshair = this._model().crosshairSource();
+		if (crosshair.visible() && chartOptions.captureFocus && this._altKeyDown) {
+			return;
+		}
 
 		if (this._startScrollingPos === null && !this._preventScroll(event)) {
 			this._startScrollingPos = {
