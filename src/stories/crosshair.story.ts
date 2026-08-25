@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/html";
 import { generateCandleData, mountPluginChart } from "../../.storybook/chart-helpers";
+import { CrosshairMode } from "../../lib/prod/src";
 import { CandlestickSeries, LineStyle } from "../index";
 import type { CandlestickData } from "../model/data-consumer";
 import type { Time } from "../model/horz-scale-behavior-time/types";
-import { Crosshair } from "../plugins/crosshair/index";
 
 function mountCrosshairStory(background: string): HTMLDivElement {
 	const { container, chart } = mountPluginChart({
@@ -27,13 +27,16 @@ function mountCrosshairStory(background: string): HTMLDivElement {
 			borderVisible: false,
 		},
 		crosshair: {
+			mode: CrosshairMode.Normal,
 			horzLine: {
-				visible: false,
-				labelVisible: false,
+				visible: true,
+				labelVisible: true,
+				style: LineStyle.LargeDashed,
+				width: 1,
 			},
 			vertLine: {
-				labelVisible: false,
-				style: LineStyle.Solid,
+				labelVisible: true,
+				style: LineStyle.LargeDashed,
 				width: 1,
 			},
 		},
@@ -50,11 +53,6 @@ function mountCrosshairStory(background: string): HTMLDivElement {
 	const data = generateCandleData();
 	series.setData(data as CandlestickData<Time>[]);
 	chart.timeScale().fitContent();
-
-	const crosshair = new Crosshair();
-	series.attachPrimitive(crosshair);
-
-	(window as any).__crosshair = { chart, series, crosshair, data };
 
 	return container;
 }

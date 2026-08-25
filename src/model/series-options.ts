@@ -24,6 +24,13 @@ export interface CandlestickStyleOptions {
 	downColor: string;
 
 	/**
+	 * Enable candle bodies.
+	 *
+	 * @defaultValue `true`
+	 */
+	bodyVisible: boolean;
+
+	/**
 	 * Enable high and low prices candle wicks.
 	 *
 	 * @defaultValue `true`

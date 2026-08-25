@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/html";
 import { generateCandleData, mountPluginChart } from "../../.storybook/chart-helpers";
 import { CandlestickSeries, LineStyle } from "../index";
-import { CrosshairMode } from "../model/crosshair";
+import { CrosshairMode, CrosshairOptions, CrosshairType } from "../model/crosshair";
 import type { CandlestickData } from "../model/data-consumer";
 import type { Time } from "../model/horz-scale-behavior-time/types";
-import { CrosshairPluginOptions, CrosshairType } from "../plugins/crosshair/state";
+
 
 function mountCrosshairTypeStory(
-	crosshairOption: CrosshairPluginOptions,
+	crosshairOption: CrosshairOptions,
 	captureFocus: boolean = false,
 ): HTMLDivElement {
 	const { container, chart } = mountPluginChart({
@@ -42,12 +42,6 @@ function mountCrosshairTypeStory(
 	series.setData(data as CandlestickData<Time>[]);
 	chart.timeScale().fitContent();
 
-	// const crosshair = new Crosshair(crosshairOption);
-	// // series.attachPrimitive(crosshair);
-	// // crosshair.setHasFocus(true);
-
-	// (window as any).__crosshair = { chart, series, crosshair, data };
-
 	return container;
 }
 
@@ -61,7 +55,7 @@ export default meta;
 
 type Story = StoryObj;
 
-const crosshairOption: CrosshairPluginOptions = {
+const crosshairOption: CrosshairOptions = {
 	mode: CrosshairMode.Normal,
 	type: CrosshairType.Cross,
 	anchor: { color: "black", strokeColor: "white" },

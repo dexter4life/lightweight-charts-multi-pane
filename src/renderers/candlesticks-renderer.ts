@@ -17,6 +17,7 @@ export interface PaneRendererCandlesticksData {
 
 	barSpacing: number;
 
+	bodyVisible: boolean;
 	wickVisible: boolean;
 	borderVisible: boolean;
 
@@ -69,7 +70,7 @@ export class PaneRendererCandlesticks extends BitmapCoordinatesPaneRenderer {
 
 		const borderWidth = this._calculateBorderWidth(horizontalPixelRatio);
 
-		if (!this._data.borderVisible || this._barWidth > borderWidth * 2) {
+		if (this._data.bodyVisible && (!this._data.borderVisible || this._barWidth > borderWidth * 2)) {
 			this._drawCandles(renderingScope, bars, this._data.visibleRange);
 		}
 	}

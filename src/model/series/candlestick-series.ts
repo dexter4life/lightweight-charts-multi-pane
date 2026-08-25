@@ -9,6 +9,7 @@ import { SeriesDefinition, SeriesDefinitionInternal } from './series-def';
 export const candlestickStyleDefaults: CandlestickStyleOptions = {
 	upColor: '#26a69a',
 	downColor: '#ef5350',
+	bodyVisible: true,
 	wickVisible: true,
 	borderVisible: true,
 	borderColor: '#378658',

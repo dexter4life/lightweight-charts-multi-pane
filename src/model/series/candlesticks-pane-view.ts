@@ -2,8 +2,8 @@ import { SeriesBarColorer } from '../../model/series-bar-colorer';
 import { SeriesPlotRow } from '../../model/series-data';
 import { TimePointIndex } from '../../model/time-data';
 import {
-	CandlestickItem,
-	PaneRendererCandlesticks,
+    CandlestickItem,
+    PaneRendererCandlesticks,
 } from '../../renderers/candlesticks-renderer';
 
 import { BarsPaneViewBase } from './bars-pane-view-base';
@@ -24,6 +24,7 @@ export class SeriesCandlesticksPaneView extends BarsPaneViewBase<'Candlestick', 
 		this._renderer.setData({
 			bars: this._items,
 			barSpacing: this._model.timeScale().barSpacing(),
+			bodyVisible: candlestickStyleProps.bodyVisible,
 			wickVisible: candlestickStyleProps.wickVisible,
 			borderVisible: candlestickStyleProps.borderVisible,
 			visibleRange: this._itemsVisibleRange,

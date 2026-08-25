@@ -9,7 +9,7 @@ import { CustomSeriesOptions } from "./model/series-options";
 export { LineStyle, LineType } from "./renderers/draw-line";
 
 export { TrackingModeExitMode } from "./model/chart-model";
-export { CrosshairMode } from "./model/crosshair";
+export { CrosshairMode, CrosshairType } from "./model/crosshair";
 export { ColorType } from "./model/layout-options";
 export { MismatchDirection } from "./model/plot-list";
 export { PriceScaleMode } from "./model/price-scale";
@@ -18,7 +18,8 @@ export { LastPriceAnimationMode, PriceLineSource } from "./model/series-options"
 export type { CandlestickData, LineData } from "./model/data-consumer";
 export {
     isBusinessDay,
-    isUTCTimestamp, TickMarkType
+    isUTCTimestamp,
+    TickMarkType
 } from "./model/horz-scale-behavior-time/types";
 export type { Time } from "./model/horz-scale-behavior-time/types";
 export type {
@@ -54,18 +55,17 @@ export { baselineSeries as BaselineSeries } from "./model/series/baseline-series
 export { candlestickSeries as CandlestickSeries } from "./model/series/candlestick-series";
 export { histogramSeries as HistogramSeries } from "./model/series/histogram-series";
 export { lineSeries as LineSeries } from "./model/series/line-series";
-/*
-	Plugins
-*/
-export { Crosshair } from "./plugins/crosshair/";
-export { CrosshairType } from "./plugins/crosshair/state";
-export type { CrosshairPluginOptions } from "./plugins/crosshair/state";
+
 export type { ImageWatermarkPosition } from "./plugins/image-watermark/options";
 export { createImageWatermark } from "./plugins/image-watermark/primitive";
 export { PriceAlerts } from "./plugins/price-alert";
 export { defaultPriceAlertsOptions } from "./plugins/price-alert/constants";
 export type { PriceAlertsOptions } from "./plugins/price-alert/constants";
-export type { DragStopInfo, SelectionInfo, UserAlertInfo } from "./plugins/price-alert/state";
+export type {
+    DragStopInfo,
+    SelectionInfo,
+    UserAlertInfo
+} from "./plugins/price-alert/state";
 export { createSeriesMarkers } from "./plugins/series-markers/wrapper";
 export type { PartialOptions } from "./plugins/shared/partial-options";
 export { createTextWatermark } from "./plugins/text-watermark/primitive";
