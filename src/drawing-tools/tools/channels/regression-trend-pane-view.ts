@@ -1,9 +1,24 @@
 import type { IPrimitivePaneView, IPrimitivePaneRenderer } from '../../../model/ipane-primitive';
 import type { CanvasRenderingTarget2D, BitmapCoordinatesRenderingScope } from 'fancy-canvas';
 
+import type { Point } from '../../core/types';
 import type { RegressionTrend } from './regression-trend';
-import { extendLineToViewport } from '../../core/geometry';
-import { applyStyle, drawLine, drawControlPoints, drawDashedLine } from '../../rendering/canvas-utils';
+import { drawLine } from '../../rendering/canvas-utils';
+
+const HANDLE_STROKE = '#2962FF';
+const LABEL_FONT = "14px -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+
+/** '#rrggbb', '#rrggbbaa' or 'rgb(a)(...)' to its opaque RGB triplet. */
+function rgbOf(color: string): [number, number, number] {
+  const c = color.trim();
+  if (c.startsWith('#')) {
+    const hex = c.length === 4 ? c.slice(1).replace(/./g, '$&$&') : c.slice(1, 7);
+    const n = parseInt(hex, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  const m = c.match(/[\d.]+/g);
+  return m ? [Number(m[0]), Number(m[1]), Number(m[2])] : [41, 98, 255];
+}
 
 export class RegressionTrendPaneView implements IPrimitivePaneView {
   private _renderer: RegressionTrendPaneRenderer;
@@ -22,97 +37,109 @@ export class RegressionTrendPaneView implements IPrimitivePaneView {
 }
 
 class RegressionTrendPaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: RegressionTrend;
-
-  constructor(drawing: RegressionTrend) {
-    this._drawing = drawing;
-  }
+  constructor(private readonly _drawing: RegressionTrend) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const d = this._drawing;
+    const viewport = d.getViewport();
+    if (!viewport || !d.options.visible || !d.isDisplayed()) return;
+    const px = d.pixels(viewport);
+    if (!px) return;
+    const o = d.regressionOptions;
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
-
-    const anchors = this._drawing.anchors;
-    const p1 = this._drawing.anchorToPixel(anchors[0], viewport);
-    const p2 = this._drawing.anchorToPixel(anchors[1], viewport);
-
-    if (!p1 || !p2) return;
-
-    const options = this._drawing.channelOptions;
-    const { slope, stdDev } = this._drawing.calculateRegression(p1, p2);
-    const offset = stdDev * (options.standardDeviations ?? 2);
-
-    // Calculate perpendicular offset
-    const len = Math.sqrt(1 + slope * slope);
-    const nx = -slope / len;
-    const ny = 1 / len;
-    const offsetX = nx * offset;
-    const offsetY = ny * offset;
-
-    // Calculate channel points
-    const p1Upper = { x: p1.x + offsetX, y: p1.y + offsetY };
-    const p2Upper = { x: p2.x + offsetX, y: p2.y + offsetY };
-    const p1Lower = { x: p1.x - offsetX, y: p1.y - offsetY };
-    const p2Lower = { x: p2.x - offsetX, y: p2.y - offsetY };
-
-    applyStyle(ctx, this._drawing.style, pixelRatio);
-
-    // Handle extensions
-    let drawP1 = p1, drawP2 = p2;
-    let drawP1U = p1Upper, drawP2U = p2Upper;
-    let drawP1L = p1Lower, drawP2L = p2Lower;
-
-    if (options.extendLines) {
-      const extendedMid = extendLineToViewport(p1, p2, viewport.width, viewport.height, true, true);
-      const extendedUpper = extendLineToViewport(p1Upper, p2Upper, viewport.width, viewport.height, true, true);
-      const extendedLower = extendLineToViewport(p1Lower, p2Lower, viewport.width, viewport.height, true, true);
-      drawP1 = extendedMid.start;
-      drawP2 = extendedMid.end;
-      drawP1U = extendedUpper.start;
-      drawP2U = extendedUpper.end;
-      drawP1L = extendedLower.start;
-      drawP2L = extendedLower.end;
+    if (d.placedCount !== null) {
+      ctx.save();
+      ctx.lineWidth = pr;
+      ctx.strokeStyle = '#363A45';
+      for (const p of px.base) {
+        ctx.beginPath();
+        ctx.moveTo(Math.round(p.x * pr) + 0.5, 0);
+        ctx.lineTo(Math.round(p.x * pr) + 0.5, viewport.height * pr);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = '#787B86';
+      drawLine(ctx, px.base[0], px.base[1], pr);
+      ctx.restore();
+      this.drawHandles(ctx, pr, d.getControlPoints(viewport), []);
+      return;
     }
 
-    // Draw fill if enabled
-    if (options.filled && this._drawing.style.fillColor) {
-      ctx.fillStyle = this._drawing.style.fillColor;
+    const ordered = (s: [Point, Point]): [Point, Point] => {
+      const e = d.extendRight(s, viewport);
+      return e[0].x <= e[1].x ? e : [e[1], e[0]];
+    };
+    const base = ordered(px.base);
+    const upper = ordered(px.upper);
+    const lower = ordered(px.lower);
+    const alpha = 1 - (o.transparency ?? 70) / 100;
+    const rgba = (color: string, a: number) => {
+      const [r, g, b] = rgbOf(color);
+      return `rgba(${r}, ${g}, ${b}, ${a})`;
+    };
+    const opaque = (color: string) => rgba(color, 1);
+
+    ctx.save();
+    const fill = (a: [Point, Point], b: [Point, Point], color: string) => {
+      ctx.fillStyle = rgba(color, alpha);
       ctx.beginPath();
-      ctx.moveTo(drawP1U.x * pixelRatio, drawP1U.y * pixelRatio);
-      ctx.lineTo(drawP2U.x * pixelRatio, drawP2U.y * pixelRatio);
-      ctx.lineTo(drawP2L.x * pixelRatio, drawP2L.y * pixelRatio);
-      ctx.lineTo(drawP1L.x * pixelRatio, drawP1L.y * pixelRatio);
+      ctx.moveTo(a[0].x * pr, a[0].y * pr);
+      ctx.lineTo(a[1].x * pr, a[1].y * pr);
+      ctx.lineTo(b[1].x * pr, b[1].y * pr);
+      ctx.lineTo(b[0].x * pr, b[0].y * pr);
       ctx.closePath();
       ctx.fill();
+    };
+    if (o.showUp) fill(upper, base, o.upColor ?? '#2962FF');
+    if (o.showDown) fill(base, lower, o.baseColor ?? '#F23645');
+
+    ctx.lineCap = 'butt';
+    const stroke = (seg: [Point, Point], color: string, width: number, dash: number[] | undefined) => {
+      ctx.strokeStyle = opaque(color);
+      ctx.lineWidth = width * pr;
+      ctx.setLineDash((dash ?? []).map((v) => v * pr));
+      drawLine(ctx, seg[0], seg[1], pr);
+    };
+    if (o.showUp) stroke(upper, o.upColor ?? '#2962FF', o.upWidth ?? d.style.lineWidth, o.upDash);
+    if (o.showDown) stroke(lower, o.downColor ?? '#2962FF', o.downWidth ?? d.style.lineWidth, o.downDash);
+    if (o.showBase) stroke(base, o.baseColor ?? '#F23645', o.baseWidth ?? 1, o.baseDash);
+
+    const fit = d.fit();
+    if (o.showPearsons && fit) {
+      ctx.setLineDash([]);
+      ctx.font = LABEL_FONT.replace('14px', `${14 * pr}px`);
+      ctx.fillStyle = opaque(o.downColor ?? '#2962FF');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const anchor = px.lower[0];
+      ctx.fillText(String(fit.r), anchor.x * pr, (anchor.y + 14) * pr);
     }
+    ctx.restore();
 
-    // Draw upper band
-    drawLine(ctx, drawP1U, drawP2U, pixelRatio);
-
-    // Draw lower band
-    drawLine(ctx, drawP1L, drawP2L, pixelRatio);
-
-    // Draw middle line (regression line) - dashed
-    if (options.showMiddleLine) {
-      drawDashedLine(ctx, drawP1, drawP2, [5, 5], pixelRatio);
+    if (d.state === 'selected' || d.state === 'editing') {
+      const small = [px.upper[0], px.upper[1]];
+      this.drawHandles(ctx, pr, d.getControlPoints(viewport), small);
     }
+  }
 
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
+  private drawHandles(ctx: CanvasRenderingContext2D, pr: number, big: Array<{ x: number; y: number }>, small: Point[]): void {
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = HANDLE_STROKE;
+    for (const [list, radius, width] of [[small, 3.25, 1.5], [big, 4.7, 2]] as const) {
+      ctx.lineWidth = width * pr;
+      for (const c of list) {
+        ctx.beginPath();
+        ctx.arc(c.x * pr, c.y * pr, radius * pr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
     }
+    ctx.restore();
   }
 }

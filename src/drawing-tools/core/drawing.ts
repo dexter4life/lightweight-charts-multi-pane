@@ -107,6 +107,11 @@ export abstract class Drawing implements IDrawing {
     return false;
   }
 
+  /** Whether the time-axis tag stays visible while the drawing is not selected. */
+  showsIdleTimeLabels(): boolean {
+    return false;
+  }
+
   /** Whether the selected drawing shows price/time tags on the axes (the extent band is always shown). */
   showsAxisTags(): boolean {
     return true;
@@ -117,8 +122,23 @@ export abstract class Drawing implements IDrawing {
     return null;
   }
 
+  /** Prices that define the price-axis band when they differ from the anchor prices; null uses the anchors. */
+  extentPrices(): number[] | null {
+    return null;
+  }
+
+  /** Colour of the extent band drawn on the axes; null keeps the default. */
+  axisBandColor(): string | null {
+    return null;
+  }
+
   /** Whether the selected drawing highlights its price extent on the price axis. */
   showsPriceBand(): boolean {
+    return true;
+  }
+
+  /** Whether the selected drawing highlights its time extent on the time axis. */
+  showsTimeBand(): boolean {
     return true;
   }
 
@@ -385,7 +405,7 @@ export abstract class Drawing implements IDrawing {
     if (!this._chart || !this._series) return null;
 
     const timeScale = this._chart.timeScale();
-    const height = this._container?.clientHeight ?? 400;
+    const height = this._series.getPane().getHeight() || (this._container?.clientHeight ?? 400);
     let mapper: ReturnType<typeof createFractionalMapper> | undefined;
 
     return {

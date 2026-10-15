@@ -2,7 +2,7 @@ import type { IPrimitivePaneView, IPrimitivePaneRenderer } from '../../../model/
 import type { CanvasRenderingTarget2D, BitmapCoordinatesRenderingScope } from 'fancy-canvas';
 
 import type { CrossLine } from './cross-line';
-import { applyStyle, drawLine, drawControlPoints, drawLabel, formatPrice } from '../../rendering/canvas-utils';
+import { applyStyle, drawLine } from '../../rendering/canvas-utils';
 
 export class CrossLinePaneView implements IPrimitivePaneView {
   private _renderer: CrossLinePaneRenderer;
@@ -21,81 +21,38 @@ export class CrossLinePaneView implements IPrimitivePaneView {
 }
 
 class CrossLinePaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: CrossLine;
-
-  constructor(drawing: CrossLine) {
-    this._drawing = drawing;
-  }
+  constructor(private readonly _drawing: CrossLine) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const d = this._drawing;
+    const viewport = d.getViewport();
+    if (!viewport || !d.options.visible || !d.isDisplayed()) return;
+    const p = d.crossPixel(viewport);
+    if (!p) return;
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
+    ctx.save();
+    applyStyle(ctx, d.style, pr);
+    ctx.lineCap = 'butt';
+    drawLine(ctx, { x: 0, y: p.y }, { x: viewport.width, y: p.y }, pr);
+    drawLine(ctx, { x: p.x, y: 0 }, { x: p.x, y: viewport.height }, pr);
+    ctx.restore();
 
-    const anchor = this._drawing.anchors[0];
-    const x = viewport.timeScale.timeToCoordinate(anchor.time);
-    const y = viewport.priceScale.priceToCoordinate(anchor.price);
-
-    if (x === null || y === null) return;
-
-    applyStyle(ctx, this._drawing.style, pixelRatio);
-
-    // Draw horizontal line
-    drawLine(ctx, { x: 0, y }, { x: viewport.width, y }, pixelRatio);
-
-    // Draw vertical line
-    drawLine(ctx, { x, y: 0 }, { x, y: viewport.height }, pixelRatio);
-
-    // Draw labels
-    const options = this._drawing.crossLineOptions;
-
-    if (options.showPrice) {
-      drawLabel(
-        ctx,
-        formatPrice(anchor.price),
-        { x: viewport.width - 10, y },
-        {
-          font: this._drawing.style.labelFont || '12px sans-serif',
-          textColor: '#ffffff',
-          backgroundColor: this._drawing.style.lineColor + 'CC',
-          padding: 4,
-          borderRadius: 3,
-        },
-        pixelRatio
-      );
-    }
-
-    if (options.showTime) {
-      drawLabel(
-        ctx,
-        String(anchor.time),
-        { x, y: viewport.height - 10 },
-        {
-          font: this._drawing.style.labelFont || '12px sans-serif',
-          textColor: '#ffffff',
-          backgroundColor: this._drawing.style.lineColor + 'CC',
-          padding: 4,
-          borderRadius: 3,
-        },
-        pixelRatio
-      );
-    }
-
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
+    if (d.state === 'selected' || d.state === 'editing') {
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(p.x * pr, p.y * pr, 5 * pr, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = d.style.lineColor;
+      ctx.lineWidth = 2 * pr;
+      ctx.stroke();
+      ctx.restore();
     }
   }
 }

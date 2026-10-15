@@ -1,10 +1,13 @@
 import type { Anchor, DrawingOptions, DrawingStyle, DrawingToolDefinition, IDrawing } from '../../core/types';
 
 import { Emoji } from './emoji';
+import { Icon } from './icon';
 import { ImageDrawing } from './image';
 
 export { Emoji, type EmojiOptions } from './emoji';
-export { EmojiPaneView } from './emoji-pane-view';
+export { Icon, type IconOptions } from './icon';
+export { GlyphDrawing, type GlyphOptions } from './glyph-drawing';
+export { GlyphPaneView } from './glyph-pane-view';
 export { ImageDrawing, ImageDrawing as Image, type ImageOptions } from './image';
 export { ImagePaneView } from './image-pane-view';
 
@@ -19,6 +22,13 @@ export const MEDIA_TOOL_DEFINITIONS: MediaToolDefinition[] = [
     category: 'media',
     requiredAnchors: 1,
     factory: (id, anchors, style, options) => new Emoji(id, anchors, style, options),
+  },
+  {
+    type: 'icon',
+    name: 'Icon',
+    category: 'media',
+    requiredAnchors: 1,
+    factory: (id, anchors, style, options) => new Icon(id, anchors, style, options),
   },
   {
     type: 'image',

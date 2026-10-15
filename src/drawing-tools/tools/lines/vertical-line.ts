@@ -1,35 +1,32 @@
 import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
 
 import { Drawing } from '../../core/drawing';
-import type { Anchor, Point, Viewport, DrawingStyle, DrawingOptions, IDrawing } from '../../core/types';
+import type { PriceTag } from '../../core/drawing';
+import type { Anchor, Point, Viewport, DrawingStyle, IDrawing } from '../../core/types';
 import type { Geometry, LineGeometry } from '../../core/geometry';
 import { VerticalLinePaneView } from './vertical-line-pane-view';
+import { DEFAULT_TREND_LINE_OPTIONS, type IntervalUnit, type TrendLineOptions } from './trend-line';
 
-/**
- * VerticalLine options
- */
-export interface VerticalLineOptions extends DrawingOptions {
-  showTime?: boolean;
-  showLabel?: boolean;
-  labelText?: string;
+export type TextOrientation = 'vertical' | 'horizontal';
+
+export interface VerticalLineOptions extends TrendLineOptions {
+  /** Time tag on the time axis. */
+  timeLabels?: boolean;
+  /** Carries the line through every pane; nothing changes on a single-pane chart. */
+  extendLine?: boolean;
+  textOrientation?: TextOrientation;
 }
 
-/**
- * VerticalLine - A vertical line at a specific time.
- *
- * Features:
- * - Single anchor point (time)
- * - Extends across entire viewport height
- * - Optional time label
- * - Optional custom label text
- */
+/** A line at one bar, spanning the pane's full height. The grab handle sits at the pane's vertical centre. */
 export class VerticalLine extends Drawing {
-  readonly type = 'vertical-line';
+  readonly type: string = 'vertical-line';
 
-  protected static readonly REQUIRED_ANCHORS = 1;
-  protected static readonly HIT_THRESHOLD = 5;
+  // Hit zone is centred half a pixel past the drawn line, as in the reference.
+  protected static readonly HIT_THRESHOLD = 3.5 + 1e-6;
+  protected static readonly HIT_SHIFT = 0.5;
 
-  private _verticalLineOptions: VerticalLineOptions;
+  private _lineOptions: VerticalLineOptions;
+  private _interval: { unit: IntervalUnit; multiplier: number } | null = null;
 
   constructor(
     id: string,
@@ -37,71 +34,116 @@ export class VerticalLine extends Drawing {
     style: Partial<DrawingStyle> = {},
     options: Partial<VerticalLineOptions> = {}
   ) {
-    const { showTime, showLabel, labelText, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
-
-    this._verticalLineOptions = {
+    super(id, anchors, style, options);
+    this._lineOptions = {
+      ...DEFAULT_TREND_LINE_OPTIONS,
+      timeLabels: true,
+      extendLine: true,
+      textOrientation: 'vertical',
+      textVAlign: 'bottom',
+      textHAlign: 'right',
+      textSize: 14,
       ...this._options,
-      showTime: showTime ?? true,
-      showLabel: showLabel ?? false,
-      labelText: labelText ?? '',
+      ...options,
     };
   }
 
-  get verticalLineOptions(): VerticalLineOptions {
-    return this._verticalLineOptions;
+  get trendLineOptions(): VerticalLineOptions {
+    return this._lineOptions;
   }
 
-  setVerticalLineOptions(options: Partial<VerticalLineOptions>): void {
-    this._verticalLineOptions = { ...this._verticalLineOptions, ...options };
+  setTrendLineOptions(options: Partial<VerticalLineOptions>): void {
+    this._lineOptions = { ...this._lineOptions, ...options };
+    this._options = { ...this._options, ...options };
     this.requestUpdate();
   }
 
+  setInterval(unit: IntervalUnit, multiplier: number): void {
+    this._interval = { unit, multiplier };
+    this.requestUpdate();
+  }
+
+  isVisibleAtInterval(): boolean {
+    const map = this._lineOptions.visibility;
+    if (!map || !this._interval) return true;
+    const rule = map[this._interval.unit];
+    if (!rule) return true;
+    return rule.enabled && this._interval.multiplier >= rule.min && this._interval.multiplier <= rule.max;
+  }
+
+  override isDisplayed(): boolean {
+    return this.isVisibleAtInterval();
+  }
+
+  // The time tag on the axis replaces the selection band and price tag.
+  override showsIdleTimeLabels(): boolean {
+    return !!this._lineOptions.timeLabels;
+  }
+
+  override showsPriceBand(): boolean {
+    return false;
+  }
+
+  override showsTimeBand(): boolean {
+    return false;
+  }
+
+  override customPriceTags(): PriceTag[] | null {
+    return [];
+  }
+
   isValid(): boolean {
-    return this._anchors.length >= VerticalLine.REQUIRED_ANCHORS;
+    return this._anchors.length >= 1;
   }
 
   paneViews(): IPrimitivePaneView[] {
     return [new VerticalLinePaneView(this)];
   }
 
+  linePixelX(viewport: Viewport): number | null {
+    if (!this.isValid()) return null;
+    return viewport.timeScale.timeToCoordinate(this._anchors[0].time);
+  }
+
+  handlePixel(viewport: Viewport): Point | null {
+    const x = this.linePixelX(viewport);
+    return x === null ? null : { x, y: viewport.height / 2 };
+  }
+
+  override getControlPoints(viewport: Viewport) {
+    const h = this.handlePixel(viewport);
+    if (!h || (this.placedCount ?? 1) < 1) return [];
+    return [{ index: 0, x: h.x, y: h.y, radius: 6 }];
+  }
+
+  // Dragging carries the stored price along, even though only the bar is drawn.
+  override dragControlPoint(index: number, _point: Point, anchor: Anchor | null): void {
+    if (anchor && this._anchors[index]) this.updateAnchor(index, anchor);
+  }
+
   computeGeometry(viewport: Viewport): Geometry[] {
-    if (!this.isValid()) return [];
-
-    const anchor = this._anchors[0];
-    const x = viewport.timeScale.timeToCoordinate(anchor.time);
+    const x = this.linePixelX(viewport);
     if (x === null) return [];
-
-    const geometries: Geometry[] = [];
-
-    // Vertical line spanning viewport
-    const lineGeometry: LineGeometry = {
-      type: 'line',
-      start: { x, y: 0 },
-      end: { x, y: viewport.height },
-    };
-    geometries.push(lineGeometry);
-
-    return geometries;
+    const line: LineGeometry = { type: 'line', start: { x, y: 0 }, end: { x, y: viewport.height } };
+    return [line];
   }
 
   testHit(point: Point, viewport: Viewport): boolean {
-    if (!this.isValid()) return false;
-
-    const anchor = this._anchors[0];
-    const x = viewport.timeScale.timeToCoordinate(anchor.time);
-    if (x === null) return false;
-
-    return Math.abs(point.x - x) <= VerticalLine.HIT_THRESHOLD;
+    const x = this.linePixelX(viewport);
+    return x !== null && Math.abs(point.x - x - VerticalLine.HIT_SHIFT) <= VerticalLine.HIT_THRESHOLD;
   }
 
   clone(newId: string): IDrawing {
-    return new VerticalLine(
-      newId,
-      [...this._anchors],
-      { ...this._style },
-      { ...this._verticalLineOptions }
-    );
+    return new VerticalLine(newId, [...this._anchors], { ...this._style }, { ...this._lineOptions });
+  }
+
+  override toJSON() {
+    return { ...super.toJSON(), options: { ...this._lineOptions } };
+  }
+
+  override fromJSON(data: any): void {
+    super.fromJSON(data);
+    if (data.options) this._lineOptions = { ...this._lineOptions, ...data.options };
   }
 
   static create(

@@ -10,33 +10,27 @@ export { HorizontalLine, type HorizontalLineOptions } from './horizontal-line';
 export { HorizontalLinePaneView } from './horizontal-line-pane-view';
 
 // VerticalLine
-export { VerticalLine, type VerticalLineOptions } from './vertical-line';
+export { VerticalLine, type VerticalLineOptions, type TextOrientation } from './vertical-line';
 export { VerticalLinePaneView } from './vertical-line-pane-view';
 
 // Ray
-export { Ray, type RayOptions } from './ray';
-export { RayPaneView } from './ray-pane-view';
+export { Ray } from './ray';
 
 // Arrow
-export { Arrow, type ArrowOptions } from './arrow';
-export { ArrowPaneView } from './arrow-pane-view';
+export { Arrow } from './arrow';
 
 // ExtendedLine
-export { ExtendedLine, type ExtendedLineOptions } from './extended-line';
-export { ExtendedLinePaneView } from './extended-line-pane-view';
+export { ExtendedLine } from './extended-line';
 
 // CrossLine
 export { CrossLine, type CrossLineOptions } from './cross-line';
 export { CrossLinePaneView } from './cross-line-pane-view';
 
 // InfoLine
-export { InfoLine, type InfoLineOptions } from './info-line';
-export { InfoLinePaneView } from './info-line-pane-view';
+export { InfoLine } from './info-line';
 
 // TrendAngle
-export { TrendAngle, type TrendAngleOptions } from './trend-angle';
-export { TrendAnglePaneView } from './trend-angle-pane-view';
+export { TrendAngle } from './trend-angle';
 
 // HorizontalRay
 export { HorizontalRay, type HorizontalRayOptions } from './horizontal-ray';
-export { HorizontalRayPaneView } from './horizontal-ray-pane-view';

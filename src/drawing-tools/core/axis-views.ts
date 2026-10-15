@@ -42,6 +42,8 @@ export function formatAxisTime(time: Time): string {
 type Extent = { min: number; max: number };
 
 function priceExtent(drawing: Drawing, placedOnly = false): Extent | null {
+  const custom = drawing.extentPrices();
+  if (custom && custom.length > 0) return { min: Math.min(...custom), max: Math.max(...custom) };
   const anchors = placedOnly && drawing.placedCount !== null ? drawing.anchors.slice(0, drawing.placedCount) : drawing.anchors;
   if (anchors.length === 0) return null;
   let min = anchors[0].price;
@@ -79,13 +81,12 @@ function isActive(drawing: Drawing): boolean {
 }
 
 function showsPriceTags(drawing: Drawing): boolean {
-  if (!drawing.showsAxisTags()) return false;
-  if (isActive(drawing)) return true;
+  if (drawing.showsAxisTags() && isActive(drawing)) return true;
   return (
     drawing.showsIdlePriceLabels() &&
     !!drawing.options.visible &&
     drawing.anchors.length > 0 &&
-    (drawing.placedCount === null || drawing.placedCount >= 2)
+    (drawing.placedCount === null || drawing.placedCount >= Math.min(2, drawing.anchors.length))
   );
 }
 
@@ -149,7 +150,9 @@ class TimeLabelView implements ISeriesPrimitiveAxisView {
   }
 
   visible(): boolean {
-    return this._drawing.showsAxisTags() && isActive(this._drawing) && this._x() !== null;
+    const d = this._drawing;
+    const idle = d.showsIdleTimeLabels() && !!d.options.visible && d.isDisplayed() && d.anchors.length > 0;
+    return ((d.showsAxisTags() && isActive(d)) || idle) && this._x() !== null;
   }
 
   coordinate(): number {
@@ -168,6 +171,10 @@ class TimeLabelView implements ISeriesPrimitiveAxisView {
   backColor(): string {
     return LABEL_BACK;
   }
+
+  tickVisible(): boolean {
+    return false;
+  }
 }
 
 class BandRenderer implements IPrimitivePaneRenderer {
@@ -179,6 +186,7 @@ class BandRenderer implements IPrimitivePaneRenderer {
   draw(target: CanvasRenderingTarget2D): void {
     if (!isActive(this._drawing)) return;
     if (this._axis === 'price' && !this._drawing.showsPriceBand()) return;
+    if (this._axis === 'time' && !this._drawing.showsTimeBand()) return;
     const vp = this._drawing.getViewport();
     if (!vp) return;
 
@@ -200,7 +208,7 @@ class BandRenderer implements IPrimitivePaneRenderer {
 
     target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
       const { context: ctx, bitmapSize, horizontalPixelRatio: hr, verticalPixelRatio: vr } = scope;
-      ctx.fillStyle = BAND_COLOR;
+      ctx.fillStyle = this._drawing.axisBandColor() ?? BAND_COLOR;
       if (this._axis === 'price') {
         ctx.fillRect(0, Math.round(from! * vr), bitmapSize.width, Math.max(1, Math.round((to! - from!) * vr)));
       } else {

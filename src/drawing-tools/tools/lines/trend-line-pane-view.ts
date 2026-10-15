@@ -77,6 +77,9 @@ function drawStatsIcon(ctx: CanvasRenderingContext2D, icon: 'price' | 'range' | 
   ctx.restore();
 }
 
+const ANGLE_ARC_RADIUS = 50;
+const ANGLE_LABEL_GAP = 7;
+
 /**
  * Specialized pane view for TrendLine with label support
  */
@@ -137,6 +140,8 @@ class TrendLinePaneRenderer implements IPrimitivePaneRenderer {
     if (opts.leftEnd === 'arrow') this.drawArrowCap(ctx, start, end, pixelRatio);
     if (opts.rightEnd === 'arrow') this.drawArrowCap(ctx, end, start, pixelRatio);
     ctx.restore();
+
+    if (drawing.showsAngleArc) this.renderAngleArc(ctx, start, end, pixelRatio);
 
     if (opts.showText && opts.text) this.renderText(ctx, start, end, pixelRatio);
 
@@ -224,6 +229,35 @@ class TrendLinePaneRenderer implements IPrimitivePaneRenderer {
       if (vAlign === 'top') ctx.textBaseline = 'bottom';
       ctx.fillText(line, 0, first + i * lh);
     });
+    ctx.restore();
+  }
+
+  private renderAngleArc(ctx: CanvasRenderingContext2D, p1: Point, p2: Point, pixelRatio: number): void {
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    if (dx === 0 && dy === 0) return;
+    const color = this._drawing.style.lineColor;
+    const theta = Math.atan2(-dy, dx);
+
+    ctx.save();
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([0.5, 1]);
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p1.x + ANGLE_ARC_RADIUS, p1.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(p1.x, p1.y, ANGLE_ARC_RADIUS, 0, -theta, theta > 0);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = color;
+    ctx.font = `12px ${FONT_FAMILY}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${Math.round((theta * 180) / Math.PI)}\u00b0`, p1.x + ANGLE_ARC_RADIUS + ANGLE_LABEL_GAP, p1.y);
     ctx.restore();
   }
 

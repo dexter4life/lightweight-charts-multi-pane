@@ -10,6 +10,10 @@ export { ShortPosition, type ShortPositionOptions } from './short-position';
 export { DateRange, type DateRangeOptions } from './date-range';
 export { DateRangePaneView } from './date-range-pane-view';
 
+// Measure
+export { Measure, formatVolume, type MeasureInfo } from './measure';
+export { MeasurePaneView } from './measure-pane-view';
+
 // DatePriceRange
 export { DatePriceRange, type DatePriceRangeOptions } from './date-price-range';
 export { DatePriceRangePaneView } from './date-price-range-pane-view';

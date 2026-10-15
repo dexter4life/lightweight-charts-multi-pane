@@ -1,186 +1,101 @@
-import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
+import type { Anchor, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
+import {
+  FlatTopBottom,
+  FT_END,
+  FT_FLAT_END,
+  FT_FLAT_START,
+  FT_START,
+  type FlatTopBottomOptions,
+  type FlatTopBottomPixels,
+} from './flat-top-bottom';
 
-import { Drawing } from '../../core/drawing';
-import type { Anchor, Point, Viewport, DrawingStyle, DrawingOptions, IDrawing } from '../../core/types';
-import type { Geometry, LineGeometry } from '../../core/geometry';
-import { distanceToLineSegment } from '../../core/geometry';
-import { DisjointChannelPaneView } from './disjoint-channel-pane-view';
+export type DisjointChannelOptions = FlatTopBottomOptions;
 
-/**
- * DisjointChannel options
- */
-export interface DisjointChannelOptions extends DrawingOptions {
-  filled?: boolean;
-  extendLines?: boolean;
-  showMiddleLine?: boolean;
-}
+export const DEFAULT_DISJOINT_CHANNEL_OPTIONS = { textColor: '#089981' };
 
 /**
- * DisjointChannel - A channel with two independent lines that don't have to be parallel.
- *
- * Features:
- * - Four anchor points: two for upper line, two for lower line
- * - Lines can be at any angle (not necessarily parallel)
- * - Optional fill between lines
- * - Optional middle line
- * - Optional line extensions
- *
- * Points:
- * - Anchor 0-1: First line
- * - Anchor 2-3: Second line
+ * Two lines with opposite slopes. The first two anchors give the upper line; the third anchor's price is where
+ * the second line ends (under the second anchor's time), and its start is that price shifted by the first line's
+ * rise, so the second line mirrors the first.
  */
-export class DisjointChannel extends Drawing {
-  readonly type = 'disjoint-channel';
-
-  protected static readonly REQUIRED_ANCHORS = 4;
-  protected static readonly HIT_THRESHOLD = 5;
-
-  private _channelOptions: DisjointChannelOptions;
+export class DisjointChannel extends FlatTopBottom {
+  override readonly type: string = 'disjoint-channel';
 
   constructor(
     id: string,
     anchors: Anchor[] = [],
     style: Partial<DrawingStyle> = {},
-    options: Partial<DisjointChannelOptions> = {}
+    options: Partial<FlatTopBottomOptions> = {}
   ) {
-    const { filled, extendLines, showMiddleLine, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
+    super(id, anchors, style, { ...DEFAULT_DISJOINT_CHANNEL_OPTIONS, ...options });
+  }
 
-    this._channelOptions = {
-      ...this._options,
-      filled: filled ?? true,
-      extendLines: extendLines ?? false,
-      showMiddleLine: showMiddleLine ?? false,
+  /** Price at the second line's start, above or below its end by the first line's rise. */
+  private startPrice(): number {
+    const [a0, a1, a2] = this._anchors;
+    return a2.price + (a1.price - a0.price);
+  }
+
+  override endPrices() {
+    return {
+      start: this._anchors[0].price,
+      end: this._anchors[1].price,
+      flatStart: this.startPrice(),
+      flatEnd: this._anchors[2].price,
     };
   }
 
-  get channelOptions(): DisjointChannelOptions {
-    return this._channelOptions;
+  override isSquareHandle(index: number): boolean {
+    return index === FT_FLAT_END;
   }
 
-  setChannelOptions(options: Partial<DisjointChannelOptions>): void {
-    this._channelOptions = { ...this._channelOptions, ...options };
-    this.requestUpdate();
+  override pixels(viewport: Viewport): FlatTopBottomPixels | null {
+    if (!this.isValid()) return null;
+    const p0 = this.anchorToPixel(this._anchors[0], viewport);
+    const p1 = this.anchorToPixel(this._anchors[1], viewport);
+    const y0 = viewport.priceScale.priceToCoordinate(this.startPrice());
+    const y1 = viewport.priceScale.priceToCoordinate(this._anchors[2].price);
+    if (!p0 || !p1 || y0 === null || y1 === null) return null;
+    return { start: p0, end: p1, flatStart: { x: p0.x, y: y0 }, flatEnd: { x: p1.x, y: y1 } };
   }
 
-  isValid(): boolean {
-    return this._anchors.length >= DisjointChannel.REQUIRED_ANCHORS;
-  }
-
-  paneViews(): IPrimitivePaneView[] {
-    return [new DisjointChannelPaneView(this)];
-  }
-
-  computeGeometry(viewport: Viewport): Geometry[] {
-    if (!this.isValid()) return [];
-
-    const p1 = this.anchorToPixel(this._anchors[0], viewport);
-    const p2 = this.anchorToPixel(this._anchors[1], viewport);
-    const p3 = this.anchorToPixel(this._anchors[2], viewport);
-    const p4 = this.anchorToPixel(this._anchors[3], viewport);
-
-    if (!p1 || !p2 || !p3 || !p4) return [];
-
-    const geometries: Geometry[] = [];
-
-    // First line (p1 to p2)
-    geometries.push({
-      type: 'line',
-      start: p1,
-      end: p2,
-      extendLeft: this._channelOptions.extendLines,
-      extendRight: this._channelOptions.extendLines,
-    } as LineGeometry);
-
-    // Second line (p3 to p4)
-    geometries.push({
-      type: 'line',
-      start: p3,
-      end: p4,
-      extendLeft: this._channelOptions.extendLines,
-      extendRight: this._channelOptions.extendLines,
-    } as LineGeometry);
-
-    // Middle line (average of both lines)
-    if (this._channelOptions.showMiddleLine) {
-      const midStart = {
-        x: (p1.x + p3.x) / 2,
-        y: (p1.y + p3.y) / 2,
+  override dragControlPoint(index: number, _point: Point, anchor: Anchor | null, _viewport: Viewport): void {
+    if (!anchor) return;
+    const [a0, a1, a2] = this._anchors;
+    if (index === FT_START) {
+      this.updateAnchor(FT_START, anchor);
+    } else if (index === FT_END) {
+      // The second line keeps its start while its slope follows the first line.
+      const rise = anchor.price - a1.price;
+      this._anchors[FT_END] = anchor;
+      this._anchors[2] = { ...a2, price: a2.price - rise };
+      this.requestUpdate();
+    } else if (index === FT_FLAT_END) {
+      this._anchors[2] = { ...a2, time: anchor.time, logical: anchor.logical, price: anchor.price };
+      this.requestUpdate();
+    } else if (index === FT_FLAT_START) {
+      this._anchors[FT_START] = {
+        ...a0,
+        time: anchor.time,
+        logical: anchor.logical,
+        price: a2.price + a1.price - anchor.price,
       };
-      const midEnd = {
-        x: (p2.x + p4.x) / 2,
-        y: (p2.y + p4.y) / 2,
-      };
-
-      geometries.push({
-        type: 'line',
-        start: midStart,
-        end: midEnd,
-        extendLeft: this._channelOptions.extendLines,
-        extendRight: this._channelOptions.extendLines,
-      } as LineGeometry);
+      this.requestUpdate();
     }
-
-    return geometries;
   }
 
-  testHit(point: Point, viewport: Viewport): boolean {
-    if (!this.isValid()) return false;
-
-    const p1 = this.anchorToPixel(this._anchors[0], viewport);
-    const p2 = this.anchorToPixel(this._anchors[1], viewport);
-    const p3 = this.anchorToPixel(this._anchors[2], viewport);
-    const p4 = this.anchorToPixel(this._anchors[3], viewport);
-
-    if (!p1 || !p2 || !p3 || !p4) return false;
-
-    // Check first line
-    if (distanceToLineSegment(point, p1, p2) <= DisjointChannel.HIT_THRESHOLD) return true;
-
-    // Check second line
-    if (distanceToLineSegment(point, p3, p4) <= DisjointChannel.HIT_THRESHOLD) return true;
-
-    // If filled, check if inside channel polygon
-    if (this._channelOptions.filled) {
-      if (this.isPointInPolygon(point, [p1, p2, p4, p3])) {
-        return true;
-      }
-    }
-
-    return false;
+  override clone(newId: string): IDrawing {
+    return new DisjointChannel(newId, [...this._anchors], { ...this._style }, { ...this.channelOptions });
   }
 
-  private isPointInPolygon(point: Point, polygon: Point[]): boolean {
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-      const xi = polygon[i].x, yi = polygon[i].y;
-      const xj = polygon[j].x, yj = polygon[j].y;
-
-      const intersect = ((yi > point.y) !== (yj > point.y)) &&
-        (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
-      if (intersect) inside = !inside;
-    }
-    return inside;
-  }
-
-  clone(newId: string): IDrawing {
-    return new DisjointChannel(
-      newId,
-      [...this._anchors],
-      { ...this._style },
-      { ...this._channelOptions }
-    );
-  }
-
-  static create(
+  static override create(
     id: string,
-    line1Start: Anchor,
-    line1End: Anchor,
-    line2Start: Anchor,
-    line2End: Anchor,
+    start: Anchor,
+    end: Anchor,
+    third: Anchor,
     style?: Partial<DrawingStyle>,
-    options?: Partial<DisjointChannelOptions>
+    options?: Partial<FlatTopBottomOptions>
   ): DisjointChannel {
-    return new DisjointChannel(id, [line1Start, line1End, line2Start, line2End], style, options);
+    return new DisjointChannel(id, [start, end, third], style, options);
   }
 }

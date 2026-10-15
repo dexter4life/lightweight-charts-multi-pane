@@ -403,7 +403,10 @@ export class DrawingManager {
       const drawing = this._drawings.get(this._selectedId);
       if (drawing) {
         drawing.setState('selected');
-        if (moved) this.emit('drawing:committed', { drawingId: drawing.id, drawing });
+        if (moved) {
+          const pointIndex = this._isDragging ? this._dragAnchorIndex ?? undefined : undefined;
+          this.emit('drawing:committed', { drawingId: drawing.id, drawing, pointIndex });
+        }
       }
       // Prevent the chart from synthesizing a click on mouseup, which could
       // deselect the drawing or trigger placement.
@@ -504,7 +507,7 @@ export class DrawingManager {
         best = c;
       }
     }
-    if (this._magnet === 'weak' && bestDist > 12) return { time, price };
+    if (this._magnet === 'weak' && bestDist > 50) return { time, price };
     return { time, price: best };
   }
 
@@ -549,12 +552,18 @@ export class DrawingManager {
     return this._allVisible;
   }
 
-  /** Move a drawing to the top (or bottom) of the paint order. */
-  reorder(id: string, position: 'front' | 'back'): void {
+  /** Move a drawing to the top/bottom of the paint order, or one step towards either end. */
+  reorder(id: string, position: 'front' | 'back' | 'forward' | 'backward'): void {
     const drawing = this._drawings.get(id);
     if (!drawing || !this._isAttached) return;
-    const rest = Array.from(this._drawings.values()).filter((d) => d.id !== id);
-    const ordered = position === 'front' ? [...rest, drawing] : [drawing, ...rest];
+    const list = Array.from(this._drawings.values());
+    const index = list.indexOf(drawing);
+    const rest = list.filter((d) => d.id !== id);
+    const target =
+      position === 'front' ? rest.length
+      : position === 'back' ? 0
+      : Math.max(0, Math.min(rest.length, index + (position === 'forward' ? 1 : -1)));
+    const ordered = [...rest.slice(0, target), drawing, ...rest.slice(target)];
     this._drawings = new Map(ordered.map((d) => [d.id, d]));
     if (this._series && this._chart) {
       for (const d of ordered) {

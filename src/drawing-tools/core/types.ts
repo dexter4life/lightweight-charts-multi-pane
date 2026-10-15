@@ -182,6 +182,8 @@ export interface DrawingEvent {
   drawingId?: string;
   drawing?: IDrawing;
   toolType?: string;
+  /** Set on `drawing:committed` when a control point was dragged. */
+  pointIndex?: number;
 }
 
 /**

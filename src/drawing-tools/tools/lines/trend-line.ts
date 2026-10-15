@@ -103,7 +103,7 @@ const MINUS = '\u2212';
  * - Anchor manipulation
  */
 export class TrendLine extends BaseLine {
-  readonly type = 'trend-line';
+  readonly type: string = 'trend-line';
 
   private _trendLineOptions: TrendLineOptions;
 
@@ -158,6 +158,11 @@ export class TrendLine extends BaseLine {
     const a = this.anchorToPixel(this._anchors[0], viewport);
     const b = this.anchorToPixel(this._anchors[1], viewport);
     return a && b ? [a, b] : null;
+  }
+
+  /** Subclasses that draw the angle arc and degree label (Trend Angle). */
+  get showsAngleArc(): boolean {
+    return false;
   }
 
   hasStats(): boolean {
@@ -242,13 +247,8 @@ export class TrendLine extends BaseLine {
 
   setTrendLineOptions(options: Partial<TrendLineOptions>): void {
     this._trendLineOptions = { ...this._trendLineOptions, ...options };
-    const { extendLeft, extendRight, visible, locked } = options;
-    const base: Partial<DrawingOptions> = {};
-    if (extendLeft !== undefined) base.extendLeft = extendLeft;
-    if (extendRight !== undefined) base.extendRight = extendRight;
-    if (visible !== undefined) base.visible = visible;
-    if (locked !== undefined) base.locked = locked;
-    this._options = { ...this._options, ...base };
+    // Restoring from JSON copies every option into the base set, so keep it in sync or stale values win.
+    this._options = { ...this._options, ...options };
     this.requestUpdate();
   }
 

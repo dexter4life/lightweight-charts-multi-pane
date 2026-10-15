@@ -48,6 +48,7 @@ import { LongPosition } from '../tools/forecasting/long-position';
 import { ShortPosition } from '../tools/forecasting/short-position';
 import { DateRange } from '../tools/forecasting/date-range';
 import { DatePriceRange } from '../tools/forecasting/date-price-range';
+import { Measure } from '../tools/forecasting/measure';
 import { Projection } from '../tools/forecasting/projection';
 
 import { PATTERN_TOOL_DEFINITIONS } from '../tools/patterns';
@@ -221,7 +222,7 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
     type: 'disjoint-channel',
     name: 'Disjoint Channel',
     category: 'channel',
-    requiredAnchors: 4,
+    requiredAnchors: 3,
     factory: (id, anchors, style, options) => new DisjointChannel(id, anchors, style, options),
   },
   {
@@ -385,6 +386,13 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
     category: 'measurement',
     requiredAnchors: 2,
     factory: (id, anchors, style, options) => new DateRange(id, anchors, style, options),
+  },
+  {
+    type: 'measure',
+    name: 'Measure',
+    category: 'measurement',
+    requiredAnchors: 2,
+    factory: (id, anchors, style, options) => new Measure(id, anchors, style, options),
   },
   {
     type: 'date-price-range',

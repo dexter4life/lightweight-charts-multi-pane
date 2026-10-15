@@ -1,128 +1,57 @@
-import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
-
 import { Drawing } from '../../core/drawing';
-import type { Anchor, Point, DrawingStyle, DrawingOptions, IDrawing, Viewport } from '../../core/types';
-import type { Geometry, LineGeometry } from '../../core/geometry';
-import { HorizontalRayPaneView } from './horizontal-ray-pane-view';
+import type { Anchor, Point, Viewport, DrawingStyle, IDrawing } from '../../core/types';
+import { HorizontalLine } from './horizontal-line';
+import type { TrendLineOptions } from './trend-line';
 
-/**
- * HorizontalRay options
- */
-export interface HorizontalRayOptions extends DrawingOptions {
-  showPrice?: boolean;
-  direction?: 'right' | 'left';
-}
+/** Horizontal Ray shares the Trend Line option set. */
+export type HorizontalRayOptions = TrendLineOptions;
 
-/**
- * HorizontalRay - A horizontal ray extending from a single point.
- *
- * Features:
- * - Single anchor point (price level)
- * - Extends horizontally to the right (or left) edge
- * - Optional price label
- * - Useful for support/resistance levels with direction
- */
-export class HorizontalRay extends Drawing {
-  readonly type = 'horizontal-ray';
+/** A level that starts at its anchor and runs to the right edge of the pane. */
+export class HorizontalRay extends HorizontalLine {
+  override readonly type: string = 'horizontal-ray';
 
-  protected static readonly REQUIRED_ANCHORS = 1;
-  protected static readonly HIT_THRESHOLD = 5;
+  protected static override readonly HIT_THRESHOLD: number = 3;
 
-  private _horizontalRayOptions: HorizontalRayOptions;
+  override lineSpan(viewport: Viewport): { x0: number; x1: number } | null {
+    const p = this._anchors[0] ? this.anchorToPixel(this._anchors[0], viewport) : null;
+    if (!p) return null;
+    return { x0: Math.max(0, p.x), x1: viewport.width };
+  }
 
-  constructor(
+  // The anchor circle is grabbable a little before the line starts.
+  override testHit(point: Point, viewport: Viewport): boolean {
+    const h = this.handlePixel(viewport);
+    if (h && Math.hypot(point.x - h.x, point.y - h.y) <= 6) return true;
+    return super.testHit(point, viewport);
+  }
+
+  override handleKind(): 'square' | 'circle' {
+    return 'circle';
+  }
+
+  override handlePixel(viewport: Viewport): Point | null {
+    return this._anchors[0] ? this.anchorToPixel(this._anchors[0], viewport) : null;
+  }
+
+  // The ray's anchor moves freely in both axes.
+  override dragControlPoint(index: number, _point: Point, anchor: Anchor | null): void {
+    if (anchor && this._anchors[index]) this.updateAnchor(index, anchor);
+  }
+
+  override bodyDragAnchors(origin: Point[], dx: number, dy: number, viewport: Viewport): Anchor[] | null {
+    return Drawing.prototype.bodyDragAnchors.call(this, origin, dx, dy, viewport);
+  }
+
+  override clone(newId: string): IDrawing {
+    return new HorizontalRay(newId, [...this._anchors], { ...this._style }, { ...this.trendLineOptions });
+  }
+
+  static override create(
     id: string,
-    anchors: Anchor[] = [],
-    style: Partial<DrawingStyle> = {},
-    options: Partial<HorizontalRayOptions> = {}
-  ) {
-    const { showPrice, direction, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
-
-    this._horizontalRayOptions = {
-      ...this._options,
-      showPrice: showPrice ?? true,
-      direction: direction ?? 'right',
-    };
-  }
-
-  get horizontalRayOptions(): HorizontalRayOptions {
-    return this._horizontalRayOptions;
-  }
-
-  setHorizontalRayOptions(options: Partial<HorizontalRayOptions>): void {
-    this._horizontalRayOptions = { ...this._horizontalRayOptions, ...options };
-    this.requestUpdate();
-  }
-
-  isValid(): boolean {
-    return this._anchors.length >= HorizontalRay.REQUIRED_ANCHORS;
-  }
-
-  paneViews(): IPrimitivePaneView[] {
-    return [new HorizontalRayPaneView(this)];
-  }
-
-  computeGeometry(viewport: Viewport): Geometry[] {
-    if (!this.isValid()) return [];
-
-    const anchor = this._anchors[0];
-    const x = viewport.timeScale.timeToCoordinate(anchor.time);
-    const y = viewport.priceScale.priceToCoordinate(anchor.price);
-
-    if (x === null || y === null) return [];
-
-    const geometries: Geometry[] = [];
-
-    // Horizontal ray
-    const lineGeometry: LineGeometry = {
-      type: 'line',
-      start: { x, y },
-      end: {
-        x: this._horizontalRayOptions.direction === 'right' ? viewport.width : 0,
-        y,
-      },
-    };
-    geometries.push(lineGeometry);
-
-    return geometries;
-  }
-
-  testHit(point: Point, viewport: Viewport): boolean {
-    if (!this.isValid()) return false;
-
-    const anchor = this._anchors[0];
-    const x = viewport.timeScale.timeToCoordinate(anchor.time);
-    const y = viewport.priceScale.priceToCoordinate(anchor.price);
-
-    if (x === null || y === null) return false;
-
-    // Check if within vertical threshold
-    if (Math.abs(point.y - y) > HorizontalRay.HIT_THRESHOLD) return false;
-
-    // Check if within horizontal range
-    if (this._horizontalRayOptions.direction === 'right') {
-      return point.x >= x;
-    } else {
-      return point.x <= x;
-    }
-  }
-
-  clone(newId: string): IDrawing {
-    return new HorizontalRay(
-      newId,
-      [...this._anchors],
-      { ...this._style },
-      { ...this._horizontalRayOptions }
-    );
-  }
-
-  static create(
-    id: string,
-    time: number | string,
     price: number,
+    time: number | string,
     style?: Partial<DrawingStyle>,
-    options?: Partial<HorizontalRayOptions>
+    options?: Partial<TrendLineOptions>
   ): HorizontalRay {
     return new HorizontalRay(id, [{ time: time as any, price }], style, options);
   }

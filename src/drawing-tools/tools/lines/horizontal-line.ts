@@ -1,122 +1,159 @@
 import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
 
 import { Drawing } from '../../core/drawing';
-import type { Anchor, Point, Viewport, DrawingStyle, DrawingOptions, IDrawing } from '../../core/types';
-import type { Geometry, LineGeometry, TextGeometry } from '../../core/geometry';
-import { formatPrice } from '../../rendering/canvas-utils';
+import type { PriceTag } from '../../core/drawing';
+import type { Anchor, Point, Viewport, DrawingStyle, IDrawing } from '../../core/types';
+import type { Geometry, LineGeometry } from '../../core/geometry';
 import { HorizontalLinePaneView } from './horizontal-line-pane-view';
+import { DEFAULT_TREND_LINE_OPTIONS, type IntervalUnit, type TrendLineOptions } from './trend-line';
 
-/**
- * HorizontalLine options
- */
-export interface HorizontalLineOptions extends DrawingOptions {
-  showPrice?: boolean;
-  showLabel?: boolean;
-  labelText?: string;
-}
+/** Horizontal Line shares the Trend Line option set (price label, text, interval visibility). */
+export type HorizontalLineOptions = TrendLineOptions;
 
-/**
- * HorizontalLine - A horizontal line at a specific price level.
- *
- * Features:
- * - Single anchor point (price level)
- * - Extends across entire viewport
- * - Optional price label
- * - Optional custom label text
- */
+/** A level across the whole pane at one price. The grab handle sits at the pane's horizontal centre. */
 export class HorizontalLine extends Drawing {
-  readonly type = 'horizontal-line';
+  readonly type: string = 'horizontal-line';
 
-  protected static readonly REQUIRED_ANCHORS = 1;
-  protected static readonly HIT_THRESHOLD = 5;
+  protected static readonly HIT_THRESHOLD: number = 4;
 
-  private _horizontalLineOptions: HorizontalLineOptions;
+  private _lineOptions: TrendLineOptions;
+  private _interval: { unit: IntervalUnit; multiplier: number } | null = null;
 
   constructor(
     id: string,
     anchors: Anchor[] = [],
     style: Partial<DrawingStyle> = {},
-    options: Partial<HorizontalLineOptions> = {}
+    options: Partial<TrendLineOptions> = {}
   ) {
-    const { showPrice, showLabel, labelText, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
-
-    this._horizontalLineOptions = {
+    super(id, anchors, style, options);
+    this._lineOptions = {
+      ...DEFAULT_TREND_LINE_OPTIONS,
+      priceLabels: true,
+      textVAlign: 'bottom',
+      textSize: 12,
       ...this._options,
-      showPrice: showPrice ?? true,
-      showLabel: showLabel ?? false,
-      labelText: labelText ?? '',
+      ...options,
     };
   }
 
-  get horizontalLineOptions(): HorizontalLineOptions {
-    return this._horizontalLineOptions;
+  get trendLineOptions(): TrendLineOptions {
+    return this._lineOptions;
   }
 
-  setHorizontalLineOptions(options: Partial<HorizontalLineOptions>): void {
-    this._horizontalLineOptions = { ...this._horizontalLineOptions, ...options };
+  setTrendLineOptions(options: Partial<TrendLineOptions>): void {
+    this._lineOptions = { ...this._lineOptions, ...options };
+    this._options = { ...this._options, ...options };
     this.requestUpdate();
   }
 
+  setInterval(unit: IntervalUnit, multiplier: number): void {
+    this._interval = { unit, multiplier };
+    this.requestUpdate();
+  }
+
+  isVisibleAtInterval(): boolean {
+    const map = this._lineOptions.visibility;
+    if (!map || !this._interval) return true;
+    const rule = map[this._interval.unit];
+    if (!rule) return true;
+    return rule.enabled && this._interval.multiplier >= rule.min && this._interval.multiplier <= rule.max;
+  }
+
+  override isDisplayed(): boolean {
+    return this.isVisibleAtInterval();
+  }
+
+  // The price tag on the axis replaces the selection band and time tag.
+  override showsIdlePriceLabels(): boolean {
+    return !!this._lineOptions.priceLabels && this.isVisibleAtInterval();
+  }
+
+  override showsAxisTags(): boolean {
+    return false;
+  }
+
+  override showsPriceBand(): boolean {
+    return false;
+  }
+
+  override showsTimeBand(): boolean {
+    return false;
+  }
+
+  override customPriceTags(): PriceTag[] | null {
+    const a = this._anchors[0];
+    return a ? [{ price: a.price, backColor: this._style.lineColor }] : null;
+  }
+
   isValid(): boolean {
-    return this._anchors.length >= HorizontalLine.REQUIRED_ANCHORS;
+    return this._anchors.length >= 1;
   }
 
   paneViews(): IPrimitivePaneView[] {
     return [new HorizontalLinePaneView(this)];
   }
 
+  linePixelY(viewport: Viewport): number | null {
+    if (!this.isValid()) return null;
+    return viewport.priceScale.priceToCoordinate(this._anchors[0].price);
+  }
+
+  /** Horizontal extent of the drawn line in pane pixels. */
+  lineSpan(viewport: Viewport): { x0: number; x1: number } | null {
+    return { x0: 0, x1: viewport.width };
+  }
+
+  handleKind(): 'square' | 'circle' {
+    return 'square';
+  }
+
+  handlePixel(viewport: Viewport): Point | null {
+    const y = this.linePixelY(viewport);
+    return y === null ? null : { x: viewport.width / 2, y };
+  }
+
+  override getControlPoints(viewport: Viewport) {
+    const h = this.handlePixel(viewport);
+    if (!h || (this.placedCount ?? 1) < 1) return [];
+    return [{ index: 0, x: h.x, y: h.y, radius: 6 }];
+  }
+
+  // The level only moves vertically.
+  override dragControlPoint(index: number, _point: Point, anchor: Anchor | null): void {
+    if (anchor && this._anchors[index]) this.updateAnchor(index, { time: this._anchors[index].time, price: anchor.price });
+  }
+
+  override bodyDragAnchors(origin: Point[], _dx: number, dy: number, viewport: Viewport): Anchor[] | null {
+    const price = viewport.priceScale.coordinateToPrice(origin[0].y + dy);
+    return price === null ? null : [{ time: this._anchors[0].time, price }];
+  }
+
   computeGeometry(viewport: Viewport): Geometry[] {
-    if (!this.isValid()) return [];
-
-    const anchor = this._anchors[0];
-    const y = viewport.priceScale.priceToCoordinate(anchor.price);
-    if (y === null) return [];
-
-    const geometries: Geometry[] = [];
-
-    // Horizontal line spanning viewport
-    const lineGeometry: LineGeometry = {
-      type: 'line',
-      start: { x: 0, y },
-      end: { x: viewport.width, y },
-    };
-    geometries.push(lineGeometry);
-
-    // Price label
-    if (this._horizontalLineOptions.showPrice) {
-      const priceText = formatPrice(anchor.price);
-      geometries.push({
-        type: 'text',
-        position: { x: viewport.width - 5, y: y - 10 },
-        text: priceText,
-        align: 'right',
-        baseline: 'bottom',
-        color: this._style.labelColor,
-        font: this._style.labelFont,
-      } as TextGeometry);
-    }
-
-    return geometries;
+    const y = this.linePixelY(viewport);
+    const span = this.lineSpan(viewport);
+    if (y === null || !span) return [];
+    const line: LineGeometry = { type: 'line', start: { x: span.x0, y }, end: { x: span.x1, y } };
+    return [line];
   }
 
   testHit(point: Point, viewport: Viewport): boolean {
-    if (!this.isValid()) return false;
-
-    const anchor = this._anchors[0];
-    const y = viewport.priceScale.priceToCoordinate(anchor.price);
-    if (y === null) return false;
-
-    return Math.abs(point.y - y) <= HorizontalLine.HIT_THRESHOLD;
+    const y = this.linePixelY(viewport);
+    const span = this.lineSpan(viewport);
+    if (y === null || !span) return false;
+    return Math.abs(point.y - y) <= (this.constructor as typeof HorizontalLine).HIT_THRESHOLD && point.x >= span.x0 && point.x <= span.x1;
   }
 
   clone(newId: string): IDrawing {
-    return new HorizontalLine(
-      newId,
-      [...this._anchors],
-      { ...this._style },
-      { ...this._horizontalLineOptions }
-    );
+    return new HorizontalLine(newId, [...this._anchors], { ...this._style }, { ...this._lineOptions });
+  }
+
+  override toJSON() {
+    return { ...super.toJSON(), options: { ...this._lineOptions } };
+  }
+
+  override fromJSON(data: any): void {
+    super.fromJSON(data);
+    if (data.options) this._lineOptions = { ...this._lineOptions, ...data.options };
   }
 
   static create(
@@ -124,7 +161,7 @@ export class HorizontalLine extends Drawing {
     price: number,
     time: number | string,
     style?: Partial<DrawingStyle>,
-    options?: Partial<HorizontalLineOptions>
+    options?: Partial<TrendLineOptions>
   ): HorizontalLine {
     return new HorizontalLine(id, [{ time: time as any, price }], style, options);
   }
