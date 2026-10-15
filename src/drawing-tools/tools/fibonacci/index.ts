@@ -52,17 +52,20 @@ export {
 export { FibCirclesPaneView } from './fib-circles-pane-view';
 
 // FibSpiral
-export { FibSpiral, type FibSpiralOptions, GOLDEN_RATIO } from './fib-spiral';
+export { FibSpiral, type FibSpiralOptions, DEFAULT_FIB_SPIRAL_OPTIONS, GOLDEN_RATIO } from './fib-spiral';
 export { FibSpiralPaneView } from './fib-spiral-pane-view';
 
 // FibArcs
-export { FibArcs, type FibArcsOptions, FIB_ARC_LEVELS } from './fib-arcs';
-export { FibArcsPaneView } from './fib-arcs-pane-view';
+export { FibArcs, type FibArcsOptions, DEFAULT_FIB_ARCS_OPTIONS, FIB_ARC_LEVELS } from './fib-arcs';
 
 // FibWedge
-export { FibWedge, type FibWedgeOptions, FIB_WEDGE_LEVELS } from './fib-wedge';
-export { FibWedgePaneView } from './fib-wedge-pane-view';
+export {
+  FibWedge,
+  type FibWedgeOptions,
+  FIB_WEDGE_LEVELS,
+  DEFAULT_FIB_WEDGE_OPTIONS,
+  defaultFibWedgeLevels,
+} from './fib-wedge';
 
 // Pitchfan
-export { Pitchfan, type PitchfanOptions, PITCHFAN_LEVELS } from './pitchfan';
-export { PitchfanPaneView } from './pitchfan-pane-view';
+export { Pitchfan, type PitchfanOptions, PITCHFAN_LEVELS, defaultPitchfanLevels } from './pitchfan';

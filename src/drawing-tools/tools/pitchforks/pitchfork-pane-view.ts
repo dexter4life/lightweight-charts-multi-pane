@@ -97,7 +97,7 @@ class PitchforkPaneRenderer implements IPrimitivePaneRenderer {
         // Bands begin on the B–C line, so the median edge starts there even when the median itself starts earlier.
         const m = layout.median;
         const bc = { x: (layout.b.x + layout.c.x) / 2, y: (layout.b.y + layout.c.y) / 2 };
-        const medianEdge: PitchforkRay = { start: bc, dir: m.dir, back: m.back > 0 ? m.forward : 0, forward: m.forward };
+        const medianEdge: PitchforkRay = layout.fan ? m : { start: bc, dir: m.dir, back: m.back > 0 ? m.forward : 0, forward: m.forward };
         const edges: Array<{ ray: PitchforkRay; signed: number; color: string }> = [
           ...layout.levels.map((l) => ({ ray: l as PitchforkRay, signed: l.signed, color: l.level.color })),
           { ray: medianEdge, signed: 0, color: lineColor },

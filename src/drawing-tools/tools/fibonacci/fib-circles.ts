@@ -23,6 +23,8 @@ export interface FibCirclesOptions extends DrawingOptions {
   coeffsAsPercents?: boolean;
   backgroundVisible?: boolean;
   backgroundOpacity?: number;
+  /** Fib Speed Resistance Arcs only: draw whole circles instead of the half facing the second point. */
+  fullCircles?: boolean;
   visibility?: VisibilityMap;
 }
 
@@ -55,6 +57,8 @@ export interface FibCircleRing {
   level: FibCircleLevel;
   rx: number;
   ry: number;
+  /** Wedge: where the label sits (its right edge is placed just left of this point). */
+  label?: Point;
 }
 
 export interface FibCirclesLayout {
@@ -63,6 +67,14 @@ export interface FibCirclesLayout {
   center: Point;
   /** Enabled levels sorted by value, with the radii of their ellipses. */
   rings: FibCircleRing[];
+  /** Arcs: +1 when the second point is below the centre, -1 when above. */
+  side?: 1 | -1;
+  /** Arcs and wedge: only this part of each circle is drawn, clockwise on screen from `from` to `to`. */
+  arc?: { from: number; to: number };
+  /** Lines drawn with the trend line style; the circles tool has a single one from `a` to `b`. */
+  edges?: Array<[Point, Point]>;
+  /** Wedge: the third point projected onto the circle through the second point. */
+  wedgeEnd?: Point;
 }
 
 const HIT_THRESHOLD = 3;
@@ -199,11 +211,12 @@ export class FibCircles extends Drawing {
     if (this._fibOptions.trendLineVisible !== false && distanceToSegment(point, layout.a, layout.b) <= HIT_THRESHOLD) {
       return true;
     }
-    return layout.rings.some((r) => this.hitRing(point, layout.center, r));
+    return layout.rings.some((r) => this.hitRing(point, layout, r));
   }
 
   /** Distance to an ellipse is approximated by scaling the point onto the unit circle. */
-  protected hitRing(point: Point, center: Point, ring: FibCircleRing): boolean {
+  protected hitRing(point: Point, layout: FibCirclesLayout, ring: FibCircleRing): boolean {
+    const center = layout.center;
     if (ring.rx < 0.5 || ring.ry < 0.5) return Math.hypot(point.x - center.x, point.y - center.y) <= HIT_THRESHOLD;
     const nx = (point.x - center.x) / ring.rx;
     const ny = (point.y - center.y) / ring.ry;

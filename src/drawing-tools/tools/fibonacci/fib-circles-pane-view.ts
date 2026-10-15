@@ -59,11 +59,17 @@ class FibCirclesPaneRenderer implements IPrimitivePaneRenderer {
     }
 
     const { center, rings } = layout;
-    const ellipse = (r: FibCircleRing | null, reverse = false) => {
+    // Arcs and the wedge keep only a part of each circle.
+    const arc = layout.arc;
+    const path = (r: FibCircleRing | null, reverse = false) => {
       const rx = (r ? r.rx : 0) * pr;
       const ry = (r ? r.ry : 0) * pr;
-      ctx.moveTo(center.x * pr + rx, center.y * pr);
-      ctx.ellipse(center.x * pr, center.y * pr, rx, ry, 0, 0, Math.PI * 2, reverse);
+      if (arc) {
+        ctx.ellipse(center.x * pr, center.y * pr, rx, ry, 0, reverse ? arc.to : arc.from, reverse ? arc.from : arc.to, reverse);
+      } else {
+        ctx.moveTo(center.x * pr + rx, center.y * pr);
+        ctx.ellipse(center.x * pr, center.y * pr, rx, ry, 0, 0, Math.PI * 2, reverse);
+      }
     };
 
     // Each band takes the colour of its outer level; the innermost one is the disc inside the first level.
@@ -72,8 +78,10 @@ class FibCirclesPaneRenderer implements IPrimitivePaneRenderer {
       rings.forEach((ring, i) => {
         ctx.fillStyle = ring.level.color;
         ctx.beginPath();
-        ellipse(ring);
-        if (i > 0) ellipse(rings[i - 1], true);
+        path(ring);
+        if (arc) path(i > 0 ? rings[i - 1] : null, true);
+        else if (i > 0) path(rings[i - 1], true);
+        ctx.closePath();
         ctx.fill('evenodd');
       });
       ctx.globalAlpha = 1;
@@ -84,13 +92,13 @@ class FibCirclesPaneRenderer implements IPrimitivePaneRenderer {
       ctx.strokeStyle = ring.level.color;
       ctx.lineWidth = Math.max(1, Math.round((ring.level.width ?? 1) * pr));
       ctx.beginPath();
-      ellipse(ring);
+      path(ring);
       ctx.stroke();
     }
 
     if (o.trendLineVisible !== false) {
       applyStyle(ctx, drawing.style, pr);
-      drawLine(ctx, layout.a, layout.b, pr);
+      for (const [p, q] of layout.edges ?? [[layout.a, layout.b]]) drawLine(ctx, p, q, pr);
     }
 
     if (o.showLabels !== false) {
@@ -99,7 +107,9 @@ class FibCirclesPaneRenderer implements IPrimitivePaneRenderer {
       ctx.textBaseline = 'middle';
       for (const ring of rings) {
         ctx.fillStyle = ring.level.color;
-        ctx.fillText(formatFibCoeff(ring.level.value, !!o.coeffsAsPercents), (center.x - LABEL_GAP) * pr, (center.y + ring.ry) * pr);
+        const x = (ring.label ? ring.label.x : center.x) - LABEL_GAP;
+        const y = ring.label ? ring.label.y : center.y + (layout.side ?? 1) * ring.ry;
+        ctx.fillText(formatFibCoeff(ring.level.value, !!o.coeffsAsPercents), x * pr, y * pr);
       }
     }
     ctx.restore();

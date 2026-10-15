@@ -76,6 +76,8 @@ export interface PitchforkLayout {
   levels: PitchforkLevelRay[];
   /** True while only the first two points exist: just the guide from A to the cursor shows. */
   partial: boolean;
+  /** Fan layouts start every ray at the first point, so the median edge of the bands starts there too. */
+  fan?: boolean;
 }
 
 const HIT_THRESHOLD = 3;
