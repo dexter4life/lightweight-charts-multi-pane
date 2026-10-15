@@ -126,6 +126,7 @@ export {
 // ============ Shape Tools ============
 export {
   Rectangle,
+  DEFAULT_RECTANGLE_OPTIONS,
   RectanglePaneView,
   type RectangleOptions,
   RotatedRectangle,

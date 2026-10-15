@@ -1,5 +1,5 @@
 // Rectangle
-export { Rectangle, type RectangleOptions } from './rectangle';
+export { Rectangle, DEFAULT_RECTANGLE_OPTIONS, type RectangleOptions, type RectangleLayout } from './rectangle';
 export { RectanglePaneView } from './rectangle-pane-view';
 
 // Rotated Rectangle
