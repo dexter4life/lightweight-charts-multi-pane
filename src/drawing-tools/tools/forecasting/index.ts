@@ -1,10 +1,10 @@
 // LongPosition
 export { LongPosition, type LongPositionOptions } from './long-position';
-export { LongPositionPaneView } from './long-position-pane-view';
+export { PositionPaneView } from './position-pane-view';
+export { PositionDrawing, type PositionOptions, type PositionStats } from './position-base';
 
 // ShortPosition
 export { ShortPosition, type ShortPositionOptions } from './short-position';
-export { ShortPositionPaneView } from './short-position-pane-view';
 
 // DateRange
 export { DateRange, type DateRangeOptions } from './date-range';

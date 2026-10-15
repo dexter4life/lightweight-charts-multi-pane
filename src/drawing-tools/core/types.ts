@@ -12,6 +12,8 @@ import type { Logical } from '../../model/time-data';
 export interface Anchor {
   time: Time;
   price: number;
+  /** Fractional bar index; when set it positions the anchor between bars (freehand strokes). */
+  logical?: number;
 }
 
 /**
@@ -115,6 +117,11 @@ export type PixelToChartFn = (point: Point) => Anchor | null;
 export type ChartToPixelFn = (anchor: Anchor) => Point | null;
 
 /**
+ * Magnet mode: 'weak' snaps to OHLC only when close, 'strong' always snaps.
+ */
+export type MagnetMode = 'off' | 'weak' | 'strong';
+
+/**
  * Snap configuration for interaction
  */
 export interface SnapConfig {
@@ -150,7 +157,9 @@ export type DrawingCategory =
   | 'annotation'
   | 'trading'
   | 'forecasting'
-  | 'measurement';
+  | 'measurement'
+  | 'pattern'
+  | 'media';
 
 /**
  * Event types emitted by DrawingManager
@@ -161,6 +170,7 @@ export type DrawingEventType =
   | 'drawing:selected'
   | 'drawing:deselected'
   | 'drawing:updated'
+  | 'drawing:committed'
   | 'drawing:cleared'
   | 'tool:changed';
 
@@ -199,6 +209,10 @@ export interface IDrawing {
   isValid(): boolean;
   setAnchors(anchors: Anchor[]): void;
   updateAnchor(index: number, anchor: Anchor): void;
+  grabControlPoint?(index: number, point: Point): void;
+  dragControlPoint(index: number, point: Point, anchor: Anchor | null, viewport: Viewport): void;
+  bodyDragOrigin(viewport: Viewport): Point[] | null;
+  bodyDragAnchors(origin: Point[], dx: number, dy: number, viewport: Viewport): Anchor[] | null;
   updateStyle(style: Partial<DrawingStyle>): void;
   updateOptions(options: Partial<DrawingOptions>): void;
   setState(state: DrawingState): void;

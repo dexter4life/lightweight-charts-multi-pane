@@ -50,6 +50,10 @@ import { DateRange } from '../tools/forecasting/date-range';
 import { DatePriceRange } from '../tools/forecasting/date-price-range';
 import { Projection } from '../tools/forecasting/projection';
 
+import { PATTERN_TOOL_DEFINITIONS } from '../tools/patterns';
+import { FORECAST_EXTRA_TOOL_DEFINITIONS } from '../tools/forecasting/extra-index';
+import { MEDIA_TOOL_DEFINITIONS } from '../tools/media';
+
 import { TextAnnotation } from '../tools/annotations/text-annotation';
 import { Callout } from '../tools/annotations/callout';
 import { Brush } from '../tools/annotations/brush';
@@ -365,14 +369,14 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
     type: 'long-position',
     name: 'Long Position',
     category: 'forecasting',
-    requiredAnchors: 3,
+    requiredAnchors: 1,
     factory: (id, anchors, style, options) => new LongPosition(id, anchors, style, options),
   },
   {
     type: 'short-position',
     name: 'Short Position',
     category: 'forecasting',
-    requiredAnchors: 3,
+    requiredAnchors: 1,
     factory: (id, anchors, style, options) => new ShortPosition(id, anchors, style, options),
   },
   {
@@ -577,6 +581,9 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
     requiredAnchors: 3,
     factory: (id, anchors, style, options) => new BarsPattern(id, anchors, style, options),
   },
+  ...PATTERN_TOOL_DEFINITIONS,
+  ...FORECAST_EXTRA_TOOL_DEFINITIONS,
+  ...MEDIA_TOOL_DEFINITIONS,
 ];
 
 /**

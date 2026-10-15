@@ -1,0 +1,156 @@
+import type { Anchor, DrawingOptions, DrawingStyle, DrawingToolDefinition, IDrawing } from '../../core/types';
+
+import { ABCDPattern } from './abcd-pattern';
+import { CyclicLines } from './cyclic-lines';
+import { CypherPattern } from './cypher-pattern';
+import { ElliottCorrectionWave } from './elliott-correction-wave';
+import { ElliottDoubleCombo } from './elliott-double-combo';
+import { ElliottImpulseWave } from './elliott-impulse-wave';
+import { ElliottTriangleWave } from './elliott-triangle-wave';
+import { ElliottTripleCombo } from './elliott-triple-combo';
+import { HeadAndShouldersPattern } from './head-and-shoulders';
+import { SineLine } from './sine-line';
+import { ThreeDrivesPattern } from './three-drives-pattern';
+import { TimeCycles } from './time-cycles';
+import { TrianglePattern } from './triangle-pattern';
+import { XABCDPattern } from './xabcd-pattern';
+
+export { CyclicLines, type CyclicLinesOptions } from './cyclic-lines';
+export { CyclicLinesPaneView } from './cyclic-lines-pane-view';
+export { TimeCycles, type TimeCyclesOptions } from './time-cycles';
+export { TimeCyclesPaneView } from './time-cycles-pane-view';
+export { SineLine, type SineLineOptions } from './sine-line';
+export { SineLinePaneView } from './sine-line-pane-view';
+export { XABCDPattern, type XABCDPatternOptions } from './xabcd-pattern';
+export { XABCDPatternPaneView } from './xabcd-pattern-pane-view';
+export { CypherPattern, type CypherPatternOptions } from './cypher-pattern';
+export { CypherPatternPaneView } from './cypher-pattern-pane-view';
+export { HeadAndShouldersPattern, type HeadAndShouldersOptions } from './head-and-shoulders';
+export { HeadAndShouldersPaneView } from './head-and-shoulders-pane-view';
+export { ABCDPattern, type ABCDPatternOptions } from './abcd-pattern';
+export { ABCDPatternPaneView } from './abcd-pattern-pane-view';
+export { TrianglePattern, type TrianglePatternOptions } from './triangle-pattern';
+export { TrianglePatternPaneView } from './triangle-pattern-pane-view';
+export { ThreeDrivesPattern, type ThreeDrivesPatternOptions } from './three-drives-pattern';
+export { ThreeDrivesPatternPaneView } from './three-drives-pattern-pane-view';
+export { ElliottImpulseWave, type ElliottImpulseWaveOptions } from './elliott-impulse-wave';
+export { ElliottImpulseWavePaneView } from './elliott-impulse-wave-pane-view';
+export { ElliottCorrectionWave, type ElliottCorrectionWaveOptions } from './elliott-correction-wave';
+export { ElliottCorrectionWavePaneView } from './elliott-correction-wave-pane-view';
+export { ElliottTriangleWave, type ElliottTriangleWaveOptions } from './elliott-triangle-wave';
+export { ElliottTriangleWavePaneView } from './elliott-triangle-wave-pane-view';
+export { ElliottDoubleCombo, type ElliottDoubleComboOptions } from './elliott-double-combo';
+export { ElliottDoubleComboPaneView } from './elliott-double-combo-pane-view';
+export { ElliottTripleCombo, type ElliottTripleComboOptions } from './elliott-triple-combo';
+export { ElliottTripleComboPaneView } from './elliott-triple-combo-pane-view';
+export { type ElliottWaveOptions } from './elliott-wave-base';
+
+export interface PatternToolDefinition extends DrawingToolDefinition {
+  factory: (
+    id: string,
+    anchors?: Anchor[],
+    style?: Partial<DrawingStyle>,
+    options?: Partial<DrawingOptions>
+  ) => IDrawing;
+}
+
+export const PATTERN_TOOL_DEFINITIONS: PatternToolDefinition[] = [
+  {
+    type: 'cyclic-lines',
+    name: 'Cyclic Lines',
+    category: 'pattern',
+    requiredAnchors: 2,
+    factory: (id, anchors, style, options) => new CyclicLines(id, anchors, style, options),
+  },
+  {
+    type: 'time-cycles',
+    name: 'Time Cycles',
+    category: 'pattern',
+    requiredAnchors: 2,
+    factory: (id, anchors, style, options) => new TimeCycles(id, anchors, style, options),
+  },
+  {
+    type: 'sine-line',
+    name: 'Sine Line',
+    category: 'pattern',
+    requiredAnchors: 2,
+    factory: (id, anchors, style, options) => new SineLine(id, anchors, style, options),
+  },
+  {
+    type: 'xabcd-pattern',
+    name: 'XABCD Pattern',
+    category: 'pattern',
+    requiredAnchors: 5,
+    factory: (id, anchors, style, options) => new XABCDPattern(id, anchors, style, options),
+  },
+  {
+    type: 'cypher-pattern',
+    name: 'Cypher Pattern',
+    category: 'pattern',
+    requiredAnchors: 5,
+    factory: (id, anchors, style, options) => new CypherPattern(id, anchors, style, options),
+  },
+  {
+    type: 'head-and-shoulders',
+    name: 'Head and Shoulders',
+    category: 'pattern',
+    requiredAnchors: 7,
+    factory: (id, anchors, style, options) => new HeadAndShouldersPattern(id, anchors, style, options),
+  },
+  {
+    type: 'abcd-pattern',
+    name: 'ABCD Pattern',
+    category: 'pattern',
+    requiredAnchors: 4,
+    factory: (id, anchors, style, options) => new ABCDPattern(id, anchors, style, options),
+  },
+  {
+    type: 'triangle-pattern',
+    name: 'Triangle Pattern',
+    category: 'pattern',
+    requiredAnchors: 4,
+    factory: (id, anchors, style, options) => new TrianglePattern(id, anchors, style, options),
+  },
+  {
+    type: 'three-drives-pattern',
+    name: 'Three Drives Pattern',
+    category: 'pattern',
+    requiredAnchors: 7,
+    factory: (id, anchors, style, options) => new ThreeDrivesPattern(id, anchors, style, options),
+  },
+  {
+    type: 'elliott-impulse-wave',
+    name: 'Elliott Impulse Wave',
+    category: 'pattern',
+    requiredAnchors: 6,
+    factory: (id, anchors, style, options) => new ElliottImpulseWave(id, anchors, style, options),
+  },
+  {
+    type: 'elliott-correction-wave',
+    name: 'Elliott Correction Wave',
+    category: 'pattern',
+    requiredAnchors: 4,
+    factory: (id, anchors, style, options) => new ElliottCorrectionWave(id, anchors, style, options),
+  },
+  {
+    type: 'elliott-triangle-wave',
+    name: 'Elliott Triangle Wave',
+    category: 'pattern',
+    requiredAnchors: 6,
+    factory: (id, anchors, style, options) => new ElliottTriangleWave(id, anchors, style, options),
+  },
+  {
+    type: 'elliott-double-combo',
+    name: 'Elliott Double Combo',
+    category: 'pattern',
+    requiredAnchors: 4,
+    factory: (id, anchors, style, options) => new ElliottDoubleCombo(id, anchors, style, options),
+  },
+  {
+    type: 'elliott-triple-combo',
+    name: 'Elliott Triple Combo',
+    category: 'pattern',
+    requiredAnchors: 6,
+    factory: (id, anchors, style, options) => new ElliottTripleCombo(id, anchors, style, options),
+  },
+];

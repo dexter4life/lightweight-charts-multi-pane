@@ -15,5 +15,15 @@ export { DisjointChannel, type DisjointChannelOptions } from './disjoint-channel
 export { DisjointChannelPaneView } from './disjoint-channel-pane-view';
 
 // FibRetracement
-export { FibRetracement, type FibRetracementOptions, FIBONACCI_LEVELS } from './fib-retracement';
+export {
+  FibRetracement,
+  type FibRetracementOptions,
+  type FibLevel,
+  type FibLevelsMode,
+  type FibHAlign,
+  type FibVAlign,
+  FIBONACCI_LEVELS,
+  defaultFibLevels,
+  DEFAULT_FIB_OPTIONS,
+} from './fib-retracement';
 export { FibRetracementPaneView } from './fib-retracement-pane-view';

@@ -26,6 +26,7 @@ export {
   type PixelToChartFn,
   type ChartToPixelFn,
   type SnapConfig,
+  type MagnetMode,
   type DrawingToolDefinition,
   type DrawingCategory,
   type DrawingEventType,
@@ -187,7 +188,13 @@ export {
   FibRetracement,
   FibRetracementPaneView,
   type FibRetracementOptions,
+  type FibLevel,
+  type FibLevelsMode,
+  type FibHAlign,
+  type FibVAlign,
   FIBONACCI_LEVELS,
+  defaultFibLevels,
+  DEFAULT_FIB_OPTIONS,
 } from './tools/channels';
 
 // ============ Fibonacci Tools ============
@@ -273,10 +280,12 @@ export {
 // ============ Forecasting Tools ============
 export {
   LongPosition,
-  LongPositionPaneView,
+  PositionPaneView,
+  PositionDrawing,
+  type PositionOptions,
+  type PositionStats,
   type LongPositionOptions,
   ShortPosition,
-  ShortPositionPaneView,
   type ShortPositionOptions,
   DateRange,
   DateRangePaneView,
@@ -294,6 +303,27 @@ export {
   BarsPatternPaneView,
   type BarsPatternOptions,
 } from './tools/forecasting';
+
+export {
+  PositionForecast,
+  PositionForecastPaneView,
+  type PositionForecastOptions,
+  GhostFeed,
+  GhostFeedPaneView,
+  type GhostFeedOptions,
+  Sector,
+  SectorPaneView,
+  type SectorOptions,
+  AnchoredVwap,
+  AnchoredVwapPaneView,
+  type AnchoredVwapOptions,
+} from './tools/forecasting/extra-index';
+
+// ============ Pattern / Cycle / Elliott Tools ============
+export * from './tools/patterns';
+
+// ============ Media Tools ============
+export * from './tools/media';
 
 // ============ Annotation Tools ============
 export {

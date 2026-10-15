@@ -1,22 +1,13 @@
 import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
-import { applyStyle, drawControlPoints, drawLabel, drawLine, formatPrice } from '../../rendering/canvas-utils';
-import { FIBONACCI_LEVELS } from './constants';
+import { applyStyle, drawControlPoints, drawLine } from '../../rendering/canvas-utils';
 import type { FibRetracement } from './fib-retracement';
 
-// Colors for different Fib levels
-const FIB_COLORS: Record<number, string> = {
-  0: '#787B86',
-  0.236: '#F7525F',
-  0.382: '#FF9800',
-  0.5: '#4CAF50',
-  0.618: '#2196F3',
-  0.786: '#9C27B0',
-  1: '#787B86',
-  1.618: '#00BCD4',
-  2.618: '#E91E63',
-};
+const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+const LABEL_EDGE = 7;
+const LABEL_GAP = 4;
+const HANDLE_COLOR = '#2962FF';
 
 export class FibRetracementPaneView implements IPrimitivePaneView {
   private _renderer: FibRetracementPaneRenderer;
@@ -35,128 +26,105 @@ export class FibRetracementPaneView implements IPrimitivePaneView {
 }
 
 class FibRetracementPaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: FibRetracement;
-
-  constructor(drawing: FibRetracement) {
-    this._drawing = drawing;
-  }
+  constructor(private readonly _drawing: FibRetracement) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const drawing = this._drawing;
+    const viewport = drawing.getViewport();
+    if (!viewport || !drawing.options.visible || !drawing.isDisplayed()) return;
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
+    const layout = drawing.layout(viewport);
+    if (!layout) return;
 
-    const anchors = this._drawing.anchors;
-    const p1 = this._drawing.anchorToPixel(anchors[0], viewport);
-    const p2 = this._drawing.anchorToPixel(anchors[1], viewport);
+    const o = drawing.fibOptions;
+    const { x1, x2, lines } = layout;
+    const state = drawing.state;
+    const placed = drawing.placedCount === null || drawing.placedCount >= 2;
 
-    if (!p1 || !p2) return;
+    ctx.save();
 
-    const options = this._drawing.fibOptions;
-    const levels = options.levels ?? FIBONACCI_LEVELS;
-    const price1 = anchors[0].price;
-    const price2 = anchors[1].price;
-    const priceRange = price2 - price1;
-
-    const minX = options.extendLines ? 0 : Math.min(p1.x, p2.x);
-    const maxX = options.extendLines ? viewport.width : Math.max(p1.x, p2.x);
-
-    // Draw fill between levels
-    if (this._drawing.style.fillColor) {
-      const sortedLevels = [...levels].sort((a, b) => a - b);
-      for (let i = 0; i < sortedLevels.length - 1; i++) {
-        const level1 = sortedLevels[i];
-        const level2 = sortedLevels[i + 1];
-
-        const levelPrice1 = options.reverseDirection
-          ? price2 - priceRange * level1
-          : price1 + priceRange * level1;
-        const levelPrice2 = options.reverseDirection
-          ? price2 - priceRange * level2
-          : price1 + priceRange * level2;
-
-        const y1 = viewport.priceScale.priceToCoordinate(levelPrice1);
-        const y2 = viewport.priceScale.priceToCoordinate(levelPrice2);
-
-        if (y1 === null || y2 === null) continue;
-
-        ctx.fillStyle = this._drawing.style.fillColor;
-        ctx.globalAlpha = 0.1;
-        ctx.fillRect(
-          minX * pixelRatio,
-          Math.min(y1, y2) * pixelRatio,
-          (maxX - minX) * pixelRatio,
-          Math.abs(y2 - y1) * pixelRatio
-        );
-        ctx.globalAlpha = 1;
+    // Each band takes the colour of the farther (higher-valued) level.
+    if (o.backgroundVisible && placed) {
+      ctx.globalAlpha = o.backgroundOpacity ?? 0.2;
+      for (let i = 1; i < lines.length; i++) {
+        const a = lines[i - 1].y;
+        const b = lines[i].y;
+        ctx.fillStyle = lines[i].level.color;
+        ctx.fillRect(x1 * pr, Math.min(a, b) * pr, (x2 - x1) * pr, Math.abs(b - a) * pr);
       }
+      ctx.globalAlpha = 1;
     }
 
-    // Draw level lines
-    for (const level of levels) {
-      const price = options.reverseDirection
-        ? price2 - priceRange * level
-        : price1 + priceRange * level;
-
-      const y = viewport.priceScale.priceToCoordinate(price);
-      if (y === null) continue;
-
-      // Use level-specific color or default
-      const color = FIB_COLORS[level] ?? this._drawing.style.lineColor;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = this._drawing.style.lineWidth * pixelRatio;
-
-      drawLine(ctx, { x: minX, y }, { x: maxX, y }, pixelRatio);
-
-      // Draw labels
-      const labelParts: string[] = [];
-
-      if (options.showPercentages) {
-        labelParts.push(`${(level * 100).toFixed(1)}%`);
-      }
-
-      if (options.showPrices) {
-        labelParts.push(formatPrice(price));
-      }
-
-      if (labelParts.length > 0) {
-        drawLabel(
-          ctx,
-          labelParts.join(' - '),
-          { x: maxX - 5, y },
-          {
-            font: '11px sans-serif',
-            textColor: '#ffffff',
-            backgroundColor: color + 'CC',
-            padding: 3,
-            borderRadius: 2,
-          },
-          pixelRatio
-        );
-      }
+    const lw = o.levelsWidth ?? 1;
+    const deviceWidth = Math.max(1, Math.round(lw * pr));
+    const half = deviceWidth % 2 === 1 ? 0.5 : 0;
+    ctx.lineWidth = deviceWidth;
+    ctx.lineCap = 'butt';
+    ctx.setLineDash((o.levelsDash ?? []).map((d) => d * pr));
+    for (const l of lines) {
+      const y = Math.round(l.y * pr) + half;
+      ctx.strokeStyle = l.level.color;
+      ctx.beginPath();
+      ctx.moveTo(x1 * pr, y);
+      ctx.lineTo(x2 * pr, y);
+      ctx.stroke();
     }
-
-    // Draw the main trend line connecting anchors
-    applyStyle(ctx, this._drawing.style, pixelRatio);
-    ctx.setLineDash([5, 5]);
-    drawLine(ctx, p1, p2, pixelRatio);
     ctx.setLineDash([]);
 
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
+    if (o.trendLineVisible) {
+      applyStyle(ctx, drawing.style, pr);
+      drawLine(ctx, layout.p1, layout.p2, pr);
+    }
+
+    this.drawLabels(ctx, layout, pr, viewport.width);
+
+    if (state === 'selected' || state === 'editing' || state === 'hovered') {
+      ctx.setLineDash([]);
+      drawControlPoints(ctx, drawing.getControlPoints(viewport), null, pr, HANDLE_COLOR);
+    }
+    ctx.restore();
+  }
+
+  private drawLabels(ctx: CanvasRenderingContext2D, layout: ReturnType<FibRetracement['layout']> & object, pr: number, paneWidth: number): void {
+    const drawing = this._drawing;
+    const o = drawing.fibOptions;
+    if (!o.showLevels && !o.showPrices) return;
+
+    const size = o.fontSize ?? 12;
+    const hAlign = o.labelHAlign ?? 'left';
+    const vAlign = o.labelVAlign ?? 'top';
+    const { x1, x2 } = layout;
+
+    let x: number;
+    let align: CanvasTextAlign;
+    if (hAlign === 'left') {
+      [x, align] = drawing.options.extendLeft ? [LABEL_EDGE, 'left'] : [x1 - LABEL_EDGE, 'right'];
+    } else if (hAlign === 'right') {
+      [x, align] = drawing.options.extendRight ? [paneWidth - LABEL_EDGE, 'right'] : [x2 + LABEL_EDGE, 'left'];
+    } else {
+      [x, align] = [(x1 + x2) / 2, 'center'];
+    }
+
+    ctx.font = `${size * pr}px ${FONT_FAMILY}`;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'alphabetic';
+
+    for (const l of layout.lines) {
+      const parts: string[] = [];
+      if (o.showLevels) {
+        parts.push(o.levelsMode === 'percents' ? `${(l.level.value * 100).toFixed(2)}%` : `${l.level.value}`);
+      }
+      if (o.showPrices) parts.push(`(${drawing.formatPrice(l.price)})`);
+
+      const baseline =
+        vAlign === 'top' ? l.y - LABEL_GAP : vAlign === 'bottom' ? l.y + LABEL_GAP + size * 0.72 : l.y + size * 0.36;
+      ctx.fillStyle = l.level.color;
+      ctx.fillText(parts.join(''), x * pr, baseline * pr);
     }
   }
 }

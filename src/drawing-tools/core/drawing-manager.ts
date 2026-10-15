@@ -3,11 +3,15 @@ import type { MouseEventParams } from '../../api/ichart-api';
 import type { ISeriesApi } from '../../api/iseries-api';
 import type { SeriesType } from '../../model/series-options';
 
+import { createFractionalMapper } from './fractional-logical';
+
 import type {
+  Anchor,
   DrawingEvent,
   DrawingEventCallback,
   DrawingEventType,
   IDrawing,
+  MagnetMode,
   Point,
   SerializedDrawing,
   Viewport,
@@ -37,6 +41,15 @@ export class DrawingManager {
   private _activeTool: string | null = null;
   private _isDragging: boolean = false;
   private _dragAnchorIndex: number | null = null;
+  private _bodyDrag: {
+    startX: number;
+    startY: number;
+    origin: { x: number; y: number }[];
+    moved: boolean;
+  } | null = null;
+  private _magnet: MagnetMode = 'off';
+  private _allLocked: boolean = false;
+  private _allVisible: boolean = true;
 
   constructor() {
     this.handleMouseDown = this.handleMouseDown.bind(this);
@@ -66,6 +79,7 @@ export class DrawingManager {
 
     // Attach all existing drawings
     for (const drawing of this._drawings.values()) {
+      if (drawing.options.visible === false) continue;
       drawing.attach(series, chart, this._container ?? undefined);
     }
 
@@ -131,7 +145,7 @@ export class DrawingManager {
     this._drawings.set(drawing.id, drawing);
 
     // Attach to chart if manager is attached
-    if (this._isAttached && this._series && this._chart) {
+    if (this._isAttached && this._series && this._chart && drawing.options.visible !== false) {
       drawing.attach(this._series, this._chart, this._container ?? undefined);
     }
 
@@ -301,6 +315,7 @@ export class DrawingManager {
   }
 
   private handleMouseDown(event: MouseEvent): void {
+    if (event.button !== 0) return;
     const point = this.getPointFromEvent(event);
     if (!point) return;
 
@@ -313,6 +328,7 @@ export class DrawingManager {
           this._isDragging = true;
           this._dragAnchorIndex = anchorIndex;
           drawing.setState('editing');
+          drawing.grabControlPoint?.(anchorIndex, point);
           // Stop the event before it reaches the chart's canvas handler so
           // the chart does not enter its pan/scroll state.
           event.stopPropagation();
@@ -321,9 +337,46 @@ export class DrawingManager {
         }
       }
     }
+
+    // Body drag: grab a drawing anywhere on its body and move it as a whole.
+    if (this._activeTool || !this.isInsidePlot(point)) return;
+    const hit = this.hitTest(point);
+    if (!hit) return;
+
+    this.selectDrawing(hit.id);
+    event.stopPropagation();
+    event.preventDefault();
+    if (hit.options.locked) return;
+
+    const viewport = this.getViewport();
+    if (!viewport) return;
+    const origin = hit.bodyDragOrigin(viewport);
+    if (!origin) return;
+    this._bodyDrag = { startX: point.x, startY: point.y, origin, moved: false };
+    hit.setState('editing');
   }
 
   private handleMouseMove(event: MouseEvent): void {
+    if (this._bodyDrag && this._selectedId) {
+      const drawing = this._drawings.get(this._selectedId);
+      const point = this.getPointFromEvent(event);
+      const viewport = this.getViewport();
+      if (drawing && point && viewport) {
+        const dx = point.x - this._bodyDrag.startX;
+        const dy = point.y - this._bodyDrag.startY;
+        if (this._bodyDrag.moved || Math.abs(dx) + Math.abs(dy) > 2) {
+          const next = drawing.bodyDragAnchors(this._bodyDrag.origin, dx, dy, viewport);
+          if (next) {
+            this._bodyDrag.moved = true;
+            drawing.setAnchors(next);
+            this.emit('drawing:updated', { drawingId: drawing.id, drawing });
+          }
+        }
+      }
+      event.stopPropagation();
+      return;
+    }
+
     if (!this._isDragging || this._dragAnchorIndex === null) return;
     if (!this._selectedId) return;
 
@@ -334,14 +387,8 @@ export class DrawingManager {
     if (!point) return;
 
     const viewport = this.getViewport();
-    if (!viewport) return;
-
-    // Convert point to anchor
-    const time = viewport.timeScale.coordinateToTime(point.x);
-    const price = viewport.priceScale.coordinateToPrice(point.y);
-
-    if (time !== null && price !== null) {
-      drawing.updateAnchor(this._dragAnchorIndex, { time, price });
+    if (viewport) {
+      drawing.dragControlPoint(this._dragAnchorIndex, point, this.resolveAnchor(point), viewport);
       this.emit('drawing:updated', { drawingId: drawing.id, drawing });
     }
 
@@ -350,10 +397,13 @@ export class DrawingManager {
   }
 
   private handleMouseUp(event: MouseEvent): void {
-    if (this._isDragging && this._selectedId) {
+    const wasEditing = this._isDragging || this._bodyDrag !== null;
+    const moved = this._isDragging || (this._bodyDrag?.moved ?? false);
+    if (wasEditing && this._selectedId) {
       const drawing = this._drawings.get(this._selectedId);
       if (drawing) {
         drawing.setState('selected');
+        if (moved) this.emit('drawing:committed', { drawingId: drawing.id, drawing });
       }
       // Prevent the chart from synthesizing a click on mouseup, which could
       // deselect the drawing or trigger placement.
@@ -362,6 +412,13 @@ export class DrawingManager {
 
     this._isDragging = false;
     this._dragAnchorIndex = null;
+    this._bodyDrag = null;
+  }
+
+  private isInsidePlot(point: Point): boolean {
+    const viewport = this.getViewport();
+    if (!viewport) return false;
+    return point.x >= 0 && point.x <= viewport.width && point.y >= 0 && point.y <= viewport.height;
   }
 
   private getPointFromEvent(event: MouseEvent): Point | null {
@@ -396,6 +453,132 @@ export class DrawingManager {
         priceToCoordinate: (price: number) => this._series!.priceToCoordinate(price),
       },
     };
+  }
+
+  // ============ Snapping ============
+
+  setMagnetMode(mode: MagnetMode): void {
+    this._magnet = mode;
+  }
+
+  getMagnetMode(): MagnetMode {
+    return this._magnet;
+  }
+
+  /**
+   * Convert a plot-area pixel point to an anchor, snapping to the nearest
+   * bar's OHLC value when the magnet is enabled.
+   */
+  /** Fractional bar index under a pixel x (not snapped to whole bars). */
+  fractionalLogical(x: number): number | null {
+    if (!this._chart) return null;
+    return createFractionalMapper(this._chart.timeScale())?.toLogical(x) ?? null;
+  }
+
+  resolveAnchor(point: Point): Anchor | null {
+    const viewport = this.getViewport();
+    if (!viewport || !this._series) return null;
+    const time = viewport.timeScale.coordinateToTime(point.x);
+    const price = viewport.priceScale.coordinateToPrice(point.y);
+    if (time === null || price === null) return null;
+    if (this._magnet === 'off') return { time, price };
+
+    const bar = this._series.data().find((d) => d.time === time) as
+      | Record<string, unknown>
+      | undefined;
+    if (!bar) return { time, price };
+
+    const candidates: number[] = [];
+    for (const key of ['open', 'high', 'low', 'close', 'value']) {
+      const v = bar[key];
+      if (typeof v === 'number') candidates.push(v);
+    }
+    let best = price;
+    let bestDist = Infinity;
+    for (const c of candidates) {
+      const cy = viewport.priceScale.priceToCoordinate(c);
+      if (cy === null) continue;
+      const dist = Math.abs(cy - point.y);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = c;
+      }
+    }
+    if (this._magnet === 'weak' && bestDist > 12) return { time, price };
+    return { time, price: best };
+  }
+
+  // ============ Bulk state / ordering ============
+
+  /** Lock or unlock every drawing (persisted on each drawing's options). */
+  setAllLocked(locked: boolean): void {
+    this._allLocked = locked;
+    for (const drawing of this._drawings.values()) {
+      drawing.updateOptions({ locked });
+    }
+    this.emit('drawing:committed', {});
+  }
+
+  isAllLocked(): boolean {
+    return this._allLocked;
+  }
+
+  /** Show or hide a single drawing by detaching/attaching its primitive. */
+  setDrawingVisible(id: string, visible: boolean): void {
+    const drawing = this._drawings.get(id);
+    if (!drawing) return;
+    drawing.updateOptions({ visible });
+    if (!this._isAttached || !this._series || !this._chart) return;
+    if (visible && !drawing.isAttached()) {
+      drawing.attach(this._series, this._chart, this._container ?? undefined);
+    } else if (!visible && drawing.isAttached()) {
+      if (this._selectedId === id) this.deselectAll();
+      drawing.detach();
+    }
+  }
+
+  setAllVisible(visible: boolean): void {
+    this._allVisible = visible;
+    for (const id of this._drawings.keys()) {
+      this.setDrawingVisible(id, visible);
+    }
+    this.emit('drawing:committed', {});
+  }
+
+  isAllVisible(): boolean {
+    return this._allVisible;
+  }
+
+  /** Move a drawing to the top (or bottom) of the paint order. */
+  reorder(id: string, position: 'front' | 'back'): void {
+    const drawing = this._drawings.get(id);
+    if (!drawing || !this._isAttached) return;
+    const rest = Array.from(this._drawings.values()).filter((d) => d.id !== id);
+    const ordered = position === 'front' ? [...rest, drawing] : [drawing, ...rest];
+    this._drawings = new Map(ordered.map((d) => [d.id, d]));
+    if (this._series && this._chart) {
+      for (const d of ordered) {
+        if (!d.isAttached()) continue;
+        d.detach();
+        d.attach(this._series, this._chart, this._container ?? undefined);
+      }
+    }
+    this.emit('drawing:committed', { drawingId: id, drawing });
+  }
+
+  /** Remove the currently selected drawing (no-op if locked). */
+  removeSelected(): boolean {
+    const drawing = this.getSelectedDrawing();
+    if (!drawing || drawing.options.locked) return false;
+    this.removeDrawing(drawing.id);
+    return true;
+  }
+
+  /** Signal that a drawing was modified programmatically (style, options). */
+  commit(id?: string): void {
+    const drawing = id ? this._drawings.get(id) : undefined;
+    this.emit('drawing:updated', { drawingId: id, drawing });
+    this.emit('drawing:committed', { drawingId: id, drawing });
   }
 
   // ============ Serialization ============

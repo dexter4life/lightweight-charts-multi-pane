@@ -2,7 +2,6 @@ import type { IPrimitivePaneView, IPrimitivePaneRenderer } from '../../../model/
 import type { CanvasRenderingTarget2D, BitmapCoordinatesRenderingScope } from 'fancy-canvas';
 
 import type { TextAnnotation } from './text-annotation';
-import { drawControlPoints } from '../../rendering/canvas-utils';
 
 export class TextAnnotationPaneView implements IPrimitivePaneView {
   private _renderer: TextAnnotationPaneRenderer;
@@ -12,7 +11,7 @@ export class TextAnnotationPaneView implements IPrimitivePaneView {
   }
 
   zOrder(): 'bottom' | 'normal' | 'top' {
-    return 'top';
+    return 'normal';
   }
 
   renderer(): IPrimitivePaneRenderer {
@@ -34,84 +33,62 @@ class TextAnnotationPaneRenderer implements IPrimitivePaneRenderer {
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const d = this._drawing;
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
+    const viewport = d.getViewport();
+    if (!viewport || !d.isValid()) return;
+    if (!d.options.visible || !d.isDisplayed()) return;
 
-    const anchor = this._drawing.anchors[0];
-    const p = this._drawing.anchorToPixel(anchor, viewport);
-    if (!p) return;
+    const origin = d.boxOrigin(viewport);
+    if (!origin) return;
 
-    const options = this._drawing.textOptions;
-    const text = options.text ?? '';
-    const fontSize = (options.fontSize ?? 14) * pixelRatio;
-    const fontFamily = options.fontFamily ?? 'sans-serif';
-    const fontWeight = options.fontWeight ?? 'normal';
-    const padding = (options.padding ?? 8) * pixelRatio;
+    const o = d.textOptions;
+    const box = d.layout();
+    const x = origin.x * pr;
+    const y = origin.y * pr;
+    const w = box.width * pr;
+    const h = box.height * pr;
 
-    // Set up font
-    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-    ctx.textAlign = options.textAlign ?? 'left';
+    ctx.save();
+    if (o.fillBackground) {
+      ctx.fillStyle = o.backgroundColor ?? 'rgba(91, 133, 191, 0.3)';
+      ctx.fillRect(x, y, w, h);
+    }
+    if (o.drawBorder) {
+      ctx.strokeStyle = o.borderColor ?? '#667b8b';
+      ctx.lineWidth = pr;
+      ctx.strokeRect(x + pr / 2, y + pr / 2, w - pr, h - pr);
+    }
+
+    ctx.font = box.font.replace(/(\d+(?:\.\d+)?)px/, (_, n) => `${Number(n) * pr}px`);
+    ctx.fillStyle = d.style.lineColor;
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
+    box.lines.forEach((line, i) => {
+      ctx.fillText(line, x + 4 * pr, y + (1.5 + box.lineHeight * (i + 0.5)) * pr);
+    });
+    ctx.restore();
 
-    // Measure text
-    const metrics = ctx.measureText(text);
-    const textWidth = metrics.width;
-    const textHeight = fontSize;
-
-    const x = p.x * pixelRatio;
-    const y = p.y * pixelRatio;
-
-    // Calculate box position based on alignment
-    let boxX = x;
-    if (options.textAlign === 'center') {
-      boxX = x - textWidth / 2;
-    } else if (options.textAlign === 'right') {
-      boxX = x - textWidth;
-    }
-
-    // Draw background
-    if (options.backgroundColor) {
-      ctx.fillStyle = options.backgroundColor;
-      ctx.beginPath();
-      ctx.roundRect(
-        boxX - padding,
-        y - textHeight / 2 - padding,
-        textWidth + padding * 2,
-        textHeight + padding * 2,
-        4 * pixelRatio
-      );
-      ctx.fill();
-    }
-
-    // Draw border
-    if (options.borderColor) {
-      ctx.strokeStyle = options.borderColor;
-      ctx.lineWidth = 1 * pixelRatio;
-      ctx.beginPath();
-      ctx.roundRect(
-        boxX - padding,
-        y - textHeight / 2 - padding,
-        textWidth + padding * 2,
-        textHeight + padding * 2,
-        4 * pixelRatio
-      );
-      ctx.stroke();
-    }
-
-    // Draw text
-    ctx.fillStyle = this._drawing.style.labelColor ?? '#000000';
-    ctx.fillText(text, x, y);
-
-    // Draw control points if selected
-    const state = this._drawing.state;
+    const state = d.state;
     if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
+      for (const cp of d.getControlPoints(viewport)) this.drawHandle(ctx, cp.x * pr, cp.y * pr, pr);
     }
+  }
+
+  /** 8px handle: white fill, 1px blue ring, 1px white halo. */
+  private drawHandle(ctx: CanvasRenderingContext2D, x: number, y: number, pr: number): void {
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(x, y, 3.5 * pr, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.lineWidth = pr;
+    ctx.strokeStyle = '#2962FF';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, 4.5 * pr, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
   }
 }

@@ -3,7 +3,7 @@ import type { CanvasRenderingTarget2D, BitmapCoordinatesRenderingScope } from 'f
 
 import type { Brush } from './brush';
 import type { Point } from '../../core/types';
-import { applyStyle, drawControlPoints } from '../../rendering/canvas-utils';
+import { applyStyle } from '../../rendering/canvas-utils';
 
 export class BrushPaneView implements IPrimitivePaneView {
   private _renderer: BrushPaneRenderer;
@@ -35,64 +35,97 @@ class BrushPaneRenderer implements IPrimitivePaneRenderer {
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
 
     const viewport = this._drawing.getViewport();
     if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
+    const drawing = this._drawing;
+    if (!drawing.options.visible || !drawing.isDisplayed() || !drawing.isValid()) return;
 
-    const anchors = this._drawing.anchors;
     const points: Point[] = [];
-    for (const anchor of anchors) {
-      const p = this._drawing.anchorToPixel(anchor, viewport);
+    for (const anchor of drawing.anchors) {
+      const p = drawing.anchorToPixel(anchor, viewport);
       if (p) points.push(p);
     }
-
     if (points.length < 2) return;
 
-    const options = this._drawing.brushOptions;
-    const brushSize = (options.brushSize ?? 3) * pixelRatio;
+    const o = drawing.brushOptions;
+    const style = drawing.style;
+    ctx.save();
+    applyStyle(ctx, style, pr);
 
-    applyStyle(ctx, this._drawing.style, pixelRatio);
-    ctx.lineWidth = brushSize;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    const trace = (): void => {
+      ctx.beginPath();
+      ctx.moveTo(points[0].x * pr, points[0].y * pr);
+      // Quadratic curves through segment midpoints smooth the freehand path.
+      for (let i = 1; i < points.length - 1; i++) {
+        ctx.quadraticCurveTo(
+          points[i].x * pr,
+          points[i].y * pr,
+          ((points[i].x + points[i + 1].x) / 2) * pr,
+          ((points[i].y + points[i + 1].y) / 2) * pr
+        );
+      }
+      const last = points[points.length - 1];
+      ctx.lineTo(last.x * pr, last.y * pr);
+    };
 
-    // Draw the path
-    ctx.beginPath();
-    ctx.moveTo(points[0].x * pixelRatio, points[0].y * pixelRatio);
-
-    // Use quadratic curves for smoother lines
-    for (let i = 1; i < points.length - 1; i++) {
-      ctx.quadraticCurveTo(
-        points[i].x * pixelRatio,
-        points[i].y * pixelRatio,
-        (points[i].x + points[i + 1].x) / 2 * pixelRatio,
-        (points[i].y + points[i + 1].y) / 2 * pixelRatio
-      );
+    if (o.backgroundVisible && style.fillColor) {
+      trace();
+      ctx.closePath();
+      ctx.fillStyle = style.fillColor;
+      ctx.fill();
     }
 
-    // Last point
-    if (points.length > 1) {
-      ctx.lineTo(
-        points[points.length - 1].x * pixelRatio,
-        points[points.length - 1].y * pixelRatio
-      );
-    }
-
+    trace();
     ctx.stroke();
 
-    // Draw control points if selected (only first and last for brush)
-    const state = this._drawing.state;
+    const first = points[0];
+    const last = points[points.length - 1];
+    if (o.leftEnd === 'arrow') this.drawArrowCap(ctx, first, points.slice(1), pr);
+    if (o.rightEnd === 'arrow') this.drawArrowCap(ctx, last, points.slice(0, -1).reverse(), pr);
+
+    const state = drawing.state;
     if (state === 'selected' || state === 'editing') {
-      // Only show first and last control points for brush
-      const controlPoints = [
-        { index: 0, x: points[0].x, y: points[0].y, radius: 6 },
-        { index: points.length - 1, x: points[points.length - 1].x, y: points[points.length - 1].y, radius: 6 },
-      ];
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
+      for (const cp of drawing.getControlPoints(viewport)) this.drawHandle(ctx, cp.x * pr, cp.y * pr, pr);
     }
+    ctx.restore();
+  }
+
+  /** `path` runs away from the tip; the cap direction uses the first point far enough from it. */
+  private drawArrowCap(ctx: CanvasRenderingContext2D, tip: Point, path: Point[], pr: number): void {
+    const size = 7 * Math.max(1, this._drawing.style.lineWidth);
+    let other = path[0];
+    for (const p of path) {
+      other = p;
+      if (Math.hypot(p.x - tip.x, p.y - tip.y) >= size) break;
+    }
+    const dx = other.x - tip.x;
+    const dy = other.y - tip.y;
+    if (dx === 0 && dy === 0) return;
+    const base = Math.atan2(dy, dx);
+    const spread = Math.PI / 4;
+    ctx.beginPath();
+    for (const sign of [-1, 1]) {
+      ctx.moveTo(tip.x * pr, tip.y * pr);
+      ctx.lineTo((tip.x + Math.cos(base + sign * spread) * size) * pr, (tip.y + Math.sin(base + sign * spread) * size) * pr);
+    }
+    ctx.stroke();
+  }
+
+  /** 8px handle: white fill, 1px blue ring, 1px white halo. */
+  private drawHandle(ctx: CanvasRenderingContext2D, x: number, y: number, pr: number): void {
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(x, y, 3.5 * pr, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.lineWidth = pr;
+    ctx.strokeStyle = '#2962FF';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, 4.5 * pr, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
   }
 }

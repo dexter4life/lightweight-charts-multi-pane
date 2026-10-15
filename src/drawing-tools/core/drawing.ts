@@ -1,6 +1,7 @@
 import type { IChartApi } from '../../api/create-chart';
 import type { ISeriesApi } from '../../api/iseries-api';
 import type { Time } from '../../model/horz-scale-behavior-time/types';
+import type { Logical } from '../../model/time-data';
 import type {
   IPrimitivePaneView,
   PrimitiveHoveredItem,
@@ -8,6 +9,8 @@ import type {
 } from '../../model/ipane-primitive';
 import type { AutoscaleInfo, SeriesType } from '../../model/series-options';
 
+import { DrawingAxisViews } from './axis-views';
+import { createFractionalMapper } from './fractional-logical';
 import type { Geometry } from './geometry';
 import type {
   Anchor,
@@ -22,6 +25,11 @@ import type {
 } from './types';
 import { DEFAULT_DRAWING_STYLE } from './types';
 
+export interface PriceTag {
+  price: number;
+  backColor: string;
+}
+
 /**
  * Abstract base class for all drawing tools.
  * Implements ISeriesPrimitive for integration with lightweight-charts.
@@ -34,11 +42,13 @@ export abstract class Drawing implements IDrawing {
   protected _style: DrawingStyle;
   protected _options: DrawingOptions;
   protected _state: DrawingState = 'normal';
+  protected _placedCount: number | null = null;
 
   protected _series: ISeriesApi<SeriesType> | null = null;
   protected _chart: IChartApi | null = null;
   protected _container: HTMLElement | null = null;
   protected _requestUpdateFn: (() => void) | null = null;
+  private readonly _axisViews = new DrawingAxisViews(this);
 
   constructor(
     id: string,
@@ -89,6 +99,41 @@ export abstract class Drawing implements IDrawing {
 
   set options(value: DrawingOptions) {
     this._options = { ...value };
+    this.requestUpdate();
+  }
+
+  /** Whether price-axis tags stay visible while the drawing is not selected. */
+  showsIdlePriceLabels(): boolean {
+    return false;
+  }
+
+  /** Whether the selected drawing shows price/time tags on the axes (the extent band is always shown). */
+  showsAxisTags(): boolean {
+    return true;
+  }
+
+  /** Replaces the per-anchor price tags with custom ones (e.g. take-profit/stop levels); null keeps the anchor tags. */
+  customPriceTags(): PriceTag[] | null {
+    return null;
+  }
+
+  /** Whether the selected drawing highlights its price extent on the price axis. */
+  showsPriceBand(): boolean {
+    return true;
+  }
+
+  /** Extra per-drawing visibility gate (e.g. interval visibility) beyond `options.visible`. */
+  isDisplayed(): boolean {
+    return true;
+  }
+
+  /** While a drawing is being placed, only the first N anchors are committed (shown as handles / axis tags). */
+  get placedCount(): number | null {
+    return this._placedCount;
+  }
+
+  set placedCount(value: number | null) {
+    this._placedCount = value;
     this.requestUpdate();
   }
 
@@ -149,6 +194,22 @@ export abstract class Drawing implements IDrawing {
    */
   abstract paneViews(): IPrimitivePaneView[];
 
+  priceAxisViews() {
+    return this._axisViews.priceLabels;
+  }
+
+  timeAxisViews() {
+    return this._axisViews.timeLabels;
+  }
+
+  priceAxisPaneViews(): readonly IPrimitivePaneView[] {
+    return this._axisViews.priceBand;
+  }
+
+  timeAxisPaneViews(): readonly IPrimitivePaneView[] {
+    return this._axisViews.timeBand;
+  }
+
   /**
    * Optional: Provide hit testing for the primitive (lightweight-charts interface)
    */
@@ -190,6 +251,38 @@ export abstract class Drawing implements IDrawing {
   setAnchors(anchors: Anchor[]): void {
     this._anchors = [...anchors];
     this.requestUpdate();
+  }
+
+  /** Called when a control point is grabbed, with the pointer in pane pixels. Subclasses may record a grab offset. */
+  grabControlPoint(_index: number, _point: Point): void {}
+
+  /** Pointer drag of a control point. `anchor` is the resolved (magnet-snapped) pointer position, null outside the data. */
+  dragControlPoint(index: number, _point: Point, anchor: Anchor | null, _viewport: Viewport): void {
+    if (anchor) this.updateAnchor(index, anchor);
+  }
+
+  /** Pixel position of every anchor when a body drag starts; null cancels the drag. */
+  bodyDragOrigin(viewport: Viewport): Point[] | null {
+    const origin: Point[] = [];
+    for (const anchor of this._anchors) {
+      const x = viewport.timeScale.timeToCoordinate(anchor.time);
+      const y = viewport.priceScale.priceToCoordinate(anchor.price);
+      if (x === null || y === null) return null;
+      origin.push({ x, y });
+    }
+    return origin;
+  }
+
+  /** Anchors after a body drag moved the grabbed drawing by (dx, dy) pixels; null skips the frame. */
+  bodyDragAnchors(origin: Point[], dx: number, dy: number, viewport: Viewport): Anchor[] | null {
+    const next: Anchor[] = [];
+    for (const o of origin) {
+      const time = viewport.timeScale.coordinateToTime(o.x + dx);
+      const price = viewport.priceScale.coordinateToPrice(o.y + dy);
+      if (time === null || price === null) return null;
+      next.push({ time, price });
+    }
+    return next;
   }
 
   updateAnchor(index: number, anchor: Anchor): void {
@@ -247,7 +340,8 @@ export abstract class Drawing implements IDrawing {
   getControlPoints(viewport: Viewport): ControlPoint[] {
     const points: ControlPoint[] = [];
 
-    for (let i = 0; i < this._anchors.length; i++) {
+    const count = this._placedCount ?? this._anchors.length;
+    for (let i = 0; i < Math.min(count, this._anchors.length); i++) {
       const anchor = this._anchors[i];
       const pixel = this.anchorToPixel(anchor, viewport);
 
@@ -267,7 +361,10 @@ export abstract class Drawing implements IDrawing {
   // ============ Coordinate Conversion ============
 
   anchorToPixel(anchor: Anchor, viewport: Viewport): Point | null {
-    const x = viewport.timeScale.timeToCoordinate(anchor.time);
+    const x =
+      anchor.logical !== undefined
+        ? viewport.timeScale.logicalToCoordinate(anchor.logical as Logical)
+        : viewport.timeScale.timeToCoordinate(anchor.time);
     const y = viewport.priceScale.priceToCoordinate(anchor.price);
 
     if (x === null || y === null) return null;
@@ -289,6 +386,7 @@ export abstract class Drawing implements IDrawing {
 
     const timeScale = this._chart.timeScale();
     const height = this._container?.clientHeight ?? 400;
+    let mapper: ReturnType<typeof createFractionalMapper> | undefined;
 
     return {
       width: timeScale.width(),
@@ -296,7 +394,12 @@ export abstract class Drawing implements IDrawing {
       timeScale: {
         coordinateToTime: (x: number) => timeScale.coordinateToTime(x),
         timeToCoordinate: (time: Time) => timeScale.timeToCoordinate(time),
-        logicalToCoordinate: (logical) => timeScale.logicalToCoordinate(logical),
+        logicalToCoordinate: (logical) => {
+          if (Number.isInteger(logical)) return timeScale.logicalToCoordinate(logical);
+          mapper ??= createFractionalMapper(timeScale);
+          const x = mapper?.toX(logical) ?? null;
+          return x === null ? null : (x as never);
+        },
       },
       priceScale: {
         coordinateToPrice: (y: number) => this._series!.coordinateToPrice(y),

@@ -57,7 +57,7 @@ export function drawDashedLine(
 
 /**
  * Draw a control point (anchor handle) in TradingView style:
- * dark filled center with a colored ring.
+ * hollow white circle with a colored ring; filled with the line color while dragged.
  */
 export function drawControlPoint(
   ctx: CanvasRenderingContext2D,
@@ -68,19 +68,14 @@ export function drawControlPoint(
 ): void {
   const x = point.x * pixelRatio;
   const y = point.y * pixelRatio;
-  const radius = 4 * pixelRatio;
+  const radius = 6.5 * pixelRatio;
   const ringWidth = 1.5 * pixelRatio;
 
-  // Dark filled center
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fillStyle = '#131722';
-  ctx.fill();
-
-  // Colored ring
   ctx.beginPath();
   ctx.arc(x, y, radius - ringWidth / 2, 0, Math.PI * 2);
-  ctx.strokeStyle = isActive ? '#ffffff' : lineColor;
+  ctx.fillStyle = isActive ? lineColor : '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = lineColor;
   ctx.lineWidth = ringWidth;
   ctx.stroke();
 }
