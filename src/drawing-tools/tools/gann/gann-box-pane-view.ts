@@ -1,19 +1,25 @@
 import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
-import { applyStyle, drawControlPoints, drawDashedLine, drawLabel, drawLine, drawRect } from '../../rendering/canvas-utils';
-import { GANN_LEVELS } from './constants';
+import { drawControlPoints } from '../../rendering/canvas-utils';
 import type { GannBox } from './gann-box';
 
+const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+const HANDLE_COLOR = '#2962FF';
+
+/** The box sits behind the candles while the handles stay on top of them. */
 export class GannBoxPaneView implements IPrimitivePaneView {
   private _renderer: GannBoxPaneRenderer;
 
-  constructor(drawing: GannBox) {
-    this._renderer = new GannBoxPaneRenderer(drawing);
+  constructor(
+    drawing: GannBox,
+    private readonly _layer: 'body' | 'handles' = 'body'
+  ) {
+    this._renderer = new GannBoxPaneRenderer(drawing, _layer);
   }
 
   zOrder(): 'bottom' | 'normal' | 'top' {
-    return 'normal';
+    return this._layer === 'body' ? 'bottom' : 'normal';
   }
 
   renderer(): IPrimitivePaneRenderer {
@@ -22,98 +28,99 @@ export class GannBoxPaneView implements IPrimitivePaneView {
 }
 
 class GannBoxPaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: GannBox;
-
-  constructor(drawing: GannBox) {
-    this._drawing = drawing;
-  }
+  constructor(
+    private readonly _drawing: GannBox,
+    private readonly _layer: 'body' | 'handles'
+  ) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const drawing = this._drawing;
+    const viewport = drawing.getViewport();
+    if (!viewport || !drawing.options.visible || !drawing.isDisplayed()) return;
+    const layout = drawing.layout(viewport);
+    if (!layout) return;
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
+    const o = drawing.gannOptions;
+    const style = drawing.style;
+    const { left, right, top, bottom } = layout;
+    ctx.save();
+    ctx.lineCap = 'butt';
 
-    const anchors = this._drawing.anchors;
-    const p1 = this._drawing.anchorToPixel(anchors[0], viewport);
-    const p2 = this._drawing.anchorToPixel(anchors[1], viewport);
-
-    if (!p1 || !p2) return;
-
-    const options = this._drawing.gannOptions;
-    const priceLevels = options.priceLevels ?? GANN_LEVELS;
-    const timeLevels = options.timeLevels ?? GANN_LEVELS;
-
-    const left = Math.min(p1.x, p2.x);
-    const right = Math.max(p1.x, p2.x);
-    const top = Math.min(p1.y, p2.y);
-    const bottom = Math.max(p1.y, p2.y);
-    const width = right - left;
-    const height = bottom - top;
-
-    applyStyle(ctx, this._drawing.style, pixelRatio);
-
-    // Draw fill if enabled
-    if (options.filled && this._drawing.style.fillColor) {
-      ctx.fillStyle = this._drawing.style.fillColor;
-      ctx.fillRect(left * pixelRatio, top * pixelRatio, width * pixelRatio, height * pixelRatio);
+    if (this._layer === 'handles') {
+      const st = drawing.state;
+      if (st === 'selected' || st === 'editing' || st === 'hovered') {
+        drawControlPoints(ctx, drawing.getControlPoints(viewport), null, pr, HANDLE_COLOR);
+      }
+      ctx.restore();
+      return;
     }
 
-    // Draw outer rectangle
-    drawRect(ctx, { x: left, y: top }, width, height, false, pixelRatio);
-
-    // Draw horizontal lines with labels
-    ctx.globalAlpha = 0.6;
-    for (const level of priceLevels) {
-      if (level === 0 || level === 1) continue;
-      const y = top + height * level;
-      drawDashedLine(ctx, { x: left, y }, { x: right, y }, [3, 3], pixelRatio);
-
-      // Level label
-      drawLabel(
-        ctx,
-        `${(level * 100).toFixed(0)}%`,
-        { x: right + 5, y },
-        {
-          font: '10px sans-serif',
-          textColor: this._drawing.style.lineColor,
-          backgroundColor: 'transparent',
-          padding: 2,
-        },
-        pixelRatio
-      );
+    // Each band takes the colour of the higher level that closes it.
+    if (o.fillHorzBackground !== false) {
+      ctx.globalAlpha = o.horzOpacity ?? 0.2;
+      for (let i = 1; i < layout.price.length; i++) {
+        const y0 = layout.price[i - 1].pos;
+        const y1 = layout.price[i].pos;
+        ctx.fillStyle = layout.price[i].level.color;
+        ctx.fillRect(left * pr, Math.min(y0, y1) * pr, (right - left) * pr, Math.abs(y1 - y0) * pr);
+      }
     }
-
-    // Draw vertical lines with labels
-    for (const level of timeLevels) {
-      if (level === 0 || level === 1) continue;
-      const x = left + width * level;
-      drawDashedLine(ctx, { x, y: top }, { x, y: bottom }, [3, 3], pixelRatio);
+    if (o.fillVertBackground !== false) {
+      ctx.globalAlpha = o.vertOpacity ?? 0.2;
+      for (let i = 1; i < layout.time.length; i++) {
+        const x0 = layout.time[i - 1].pos;
+        const x1 = layout.time[i].pos;
+        ctx.fillStyle = layout.time[i].level.color;
+        ctx.fillRect(Math.min(x0, x1) * pr, top * pr, Math.abs(x1 - x0) * pr, (bottom - top) * pr);
+      }
     }
     ctx.globalAlpha = 1;
 
-    // Draw diagonals
-    if (options.showDiagonals) {
-      ctx.globalAlpha = 0.5;
-      drawLine(ctx, { x: left, y: top }, { x: right, y: bottom }, pixelRatio);
-      drawLine(ctx, { x: left, y: bottom }, { x: right, y: top }, pixelRatio);
-      ctx.globalAlpha = 1;
+    const lineWidth = Math.max(1, Math.round(style.lineWidth * pr));
+    const dash = (style.lineDash ?? []).map((d) => d * pr);
+    const crisp = (v: number) => Math.round(v * pr - 0.5) + 0.5;
+
+    ctx.lineWidth = lineWidth;
+    ctx.setLineDash(dash);
+    if (o.showFans) {
+      ctx.strokeStyle = o.fansColor ?? '#9598A1';
+      ctx.beginPath();
+      for (const [p, q] of drawing.fanLines(layout)) {
+        ctx.moveTo(p.x * pr, p.y * pr);
+        ctx.lineTo(q.x * pr, q.y * pr);
+      }
+      ctx.stroke();
     }
 
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
+    for (const l of layout.price) {
+      ctx.strokeStyle = l.level.color;
+      ctx.beginPath();
+      ctx.moveTo(left * pr, crisp(l.pos));
+      ctx.lineTo(right * pr, crisp(l.pos));
+      ctx.stroke();
     }
+    for (const l of layout.time) {
+      ctx.strokeStyle = l.level.color;
+      ctx.beginPath();
+      ctx.moveTo(crisp(l.pos), top * pr);
+      ctx.lineTo(crisp(l.pos), bottom * pr);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    ctx.font = `${(o.fontSize ?? 12) * pr}px ${FONT_FAMILY}`;
+    ctx.textBaseline = 'middle';
+    for (const { text, color, side, rect } of drawing.labelRects(layout)) {
+      ctx.fillStyle = color;
+      ctx.textAlign = side === 'left' ? 'right' : side === 'right' ? 'left' : 'center';
+      const x = side === 'left' ? rect.x + rect.w : side === 'right' ? rect.x : rect.x + rect.w / 2;
+      ctx.fillText(text, x * pr, (rect.y + rect.h / 2) * pr);
+    }
+    ctx.restore();
   }
 }

@@ -1,19 +1,24 @@
 import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
-import { applyStyle, drawControlPoints, drawDashedLine, drawLabel, drawLine, drawRect } from '../../rendering/canvas-utils';
-import { GANN_SQUARE_LEVELS } from './constants';
+import { drawControlPoints } from '../../rendering/canvas-utils';
 import type { GannSquareFixed } from './gann-square-fixed';
 
+const HANDLE_COLOR = '#2962FF';
+
+/** The square sits behind the candles while the handles stay on top of them. */
 export class GannSquareFixedPaneView implements IPrimitivePaneView {
   private _renderer: GannSquareFixedPaneRenderer;
 
-  constructor(drawing: GannSquareFixed) {
-    this._renderer = new GannSquareFixedPaneRenderer(drawing);
+  constructor(
+    drawing: GannSquareFixed,
+    private readonly _layer: 'body' | 'handles' = 'body'
+  ) {
+    this._renderer = new GannSquareFixedPaneRenderer(drawing, _layer);
   }
 
   zOrder(): 'bottom' | 'normal' | 'top' {
-    return 'normal';
+    return this._layer === 'body' ? 'bottom' : 'normal';
   }
 
   renderer(): IPrimitivePaneRenderer {
@@ -22,147 +27,99 @@ export class GannSquareFixedPaneView implements IPrimitivePaneView {
 }
 
 class GannSquareFixedPaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: GannSquareFixed;
-
-  constructor(drawing: GannSquareFixed) {
-    this._drawing = drawing;
-  }
+  constructor(
+    private readonly _drawing: GannSquareFixed,
+    private readonly _layer: 'body' | 'handles'
+  ) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const drawing = this._drawing;
+    const viewport = drawing.getViewport();
+    if (!viewport || !drawing.options.visible || !drawing.isDisplayed()) return;
+    const layout = drawing.layout(viewport);
+    if (!layout) return;
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
+    ctx.save();
+    ctx.lineCap = 'butt';
 
-    const anchors = this._drawing.anchors;
-    const center = this._drawing.anchorToPixel(anchors[0], viewport);
-
-    if (!center) return;
-
-    const options = this._drawing.gannOptions;
-    const halfSize = this._drawing.getSquarePixelSize(viewport) / 2;
-    const levels = options.levels ?? GANN_SQUARE_LEVELS;
-
-    const left = center.x - halfSize;
-    const right = center.x + halfSize;
-    const top = center.y - halfSize;
-    const bottom = center.y + halfSize;
-    const size = halfSize * 2;
-
-    applyStyle(ctx, this._drawing.style, pixelRatio);
-
-    // Draw fill if enabled
-    if (options.filled && this._drawing.style.fillColor) {
-      ctx.fillStyle = this._drawing.style.fillColor;
-      ctx.fillRect(left * pixelRatio, top * pixelRatio, size * pixelRatio, size * pixelRatio);
-    }
-
-    // Draw outer rectangle
-    drawRect(ctx, { x: left, y: top }, size, size, false, pixelRatio);
-
-    // Draw horizontal lines
-    ctx.globalAlpha = 0.5;
-    for (const level of levels) {
-      if (level === 0 || level === 1) continue;
-      const y = top + size * level;
-      const isCardinal = level === 0.5;
-
-      if (isCardinal) {
-        ctx.globalAlpha = 0.8;
-        drawLine(ctx, { x: left, y }, { x: right, y }, pixelRatio);
-        ctx.globalAlpha = 0.5;
-      } else {
-        drawDashedLine(ctx, { x: left, y }, { x: right, y }, [3, 3], pixelRatio);
+    if (this._layer === 'handles') {
+      const st = drawing.state;
+      if (st === 'selected' || st === 'editing' || st === 'hovered') {
+        drawControlPoints(ctx, drawing.getControlPoints(viewport), null, pr, HANDLE_COLOR);
       }
-
-      // Level label
-      if (options.showLabels) {
-        drawLabel(
-          ctx,
-          `${(level * 100).toFixed(0)}%`,
-          { x: right + 5, y },
-          {
-            font: '10px sans-serif',
-            textColor: this._drawing.style.lineColor,
-            backgroundColor: 'transparent',
-            padding: 2,
-          },
-          pixelRatio
-        );
-      }
+      ctx.restore();
+      return;
     }
 
-    // Draw vertical lines
-    for (const level of levels) {
-      if (level === 0 || level === 1) continue;
-      const x = left + size * level;
-      const isCardinal = level === 0.5;
+    const o = drawing.gannOptions;
+    const { origin, left, right, top, bottom, sx, sy } = layout;
+    const crisp = (v: number, w: number) => (w % 2 === 1 ? Math.round(v * pr - 0.5) + 0.5 : Math.round(v * pr));
+    const lineWidth = (w: number) => Math.max(1, Math.round(w * pr));
 
-      if (isCardinal) {
-        ctx.globalAlpha = 0.8;
-        drawLine(ctx, { x, y: top }, { x, y: bottom }, pixelRatio);
-        ctx.globalAlpha = 0.5;
-      } else {
-        drawDashedLine(ctx, { x, y: top }, { x, y: bottom }, [3, 3], pixelRatio);
-      }
-    }
-    ctx.globalAlpha = 1;
-
-    // Draw diagonals (ordinal cross)
-    if (options.showDiagonals) {
-      ctx.globalAlpha = 0.7;
-      drawLine(ctx, { x: left, y: top }, { x: right, y: bottom }, pixelRatio);
-      drawLine(ctx, { x: left, y: bottom }, { x: right, y: top }, pixelRatio);
-      ctx.globalAlpha = 1;
-    }
-
-    // Draw arcs at corners if enabled
-    if (options.showArcs) {
-      ctx.globalAlpha = 0.4;
-      const arcRadius = size / 4;
-
-      // Top-left corner arc
-      ctx.beginPath();
-      ctx.arc(left * pixelRatio, top * pixelRatio, arcRadius * pixelRatio, 0, Math.PI / 2);
-      ctx.stroke();
-
-      // Top-right corner arc
-      ctx.beginPath();
-      ctx.arc(right * pixelRatio, top * pixelRatio, arcRadius * pixelRatio, Math.PI / 2, Math.PI);
-      ctx.stroke();
-
-      // Bottom-right corner arc
-      ctx.beginPath();
-      ctx.arc(right * pixelRatio, bottom * pixelRatio, arcRadius * pixelRatio, Math.PI, Math.PI * 1.5);
-      ctx.stroke();
-
-      // Bottom-left corner arc
-      ctx.beginPath();
-      ctx.arc(left * pixelRatio, bottom * pixelRatio, arcRadius * pixelRatio, Math.PI * 1.5, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.globalAlpha = 1;
-    }
-
-    // Draw center point marker
     ctx.beginPath();
-    ctx.arc(center.x * pixelRatio, center.y * pixelRatio, 3 * pixelRatio, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.rect(left * pr, top * pr, (right - left) * pr, (bottom - top) * pr);
+    ctx.clip();
 
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
+    const arcs = (o.arcs ?? []).filter((a) => a.visible).sort((p, q) => drawing.arcRadius(layout, p) - drawing.arcRadius(layout, q));
+
+    // Each band takes the colour of the larger arc that closes it.
+    if (o.arcsBackground !== false) {
+      ctx.globalAlpha = o.arcsOpacity ?? 0.2;
+      let inner = 0;
+      for (const arc of arcs) {
+        const outer = drawing.arcRadius(layout, arc);
+        ctx.fillStyle = arc.color;
+        ctx.beginPath();
+        ctx.arc(origin.x * pr, origin.y * pr, outer * pr, 0, Math.PI * 2);
+        if (inner > 0) {
+          ctx.moveTo(origin.x * pr + inner * pr, origin.y * pr);
+          ctx.arc(origin.x * pr, origin.y * pr, inner * pr, 0, Math.PI * 2, true);
+        }
+        ctx.fill('evenodd');
+        inner = outer;
+      }
+      ctx.globalAlpha = 1;
     }
+
+    (o.levels ?? []).forEach((l, i) => {
+      if (!l.visible) return;
+      const d = drawing.levelOffset(layout, i);
+      const w = lineWidth(l.width);
+      ctx.lineWidth = w;
+      ctx.strokeStyle = l.color;
+      const y = origin.y + sy * d;
+      const x = origin.x + sx * d;
+      ctx.beginPath();
+      ctx.moveTo(left * pr, crisp(y, w));
+      ctx.lineTo(right * pr, crisp(y, w));
+      ctx.moveTo(crisp(x, w), top * pr);
+      ctx.lineTo(crisp(x, w), bottom * pr);
+      ctx.stroke();
+    });
+
+    for (const fan of o.fanlines ?? []) {
+      if (!fan.visible) continue;
+      const end = drawing.fanEnd(layout, fan);
+      ctx.lineWidth = lineWidth(fan.width);
+      ctx.strokeStyle = fan.color;
+      ctx.beginPath();
+      ctx.moveTo(origin.x * pr, origin.y * pr);
+      ctx.lineTo(end.x * pr, end.y * pr);
+      ctx.stroke();
+    }
+
+    for (const arc of arcs) {
+      ctx.lineWidth = lineWidth(arc.width);
+      ctx.strokeStyle = arc.color;
+      ctx.beginPath();
+      ctx.arc(origin.x * pr, origin.y * pr, drawing.arcRadius(layout, arc) * pr, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }

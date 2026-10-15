@@ -1,30 +1,23 @@
 import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
-import { extendLineToViewport } from '../../core/geometry';
-import type { Point } from '../../core/types';
-import { applyStyle, drawControlPoints, drawLabel, drawLine } from '../../rendering/canvas-utils';
-import { GANN_FAN_ANGLES } from './constants';
+import { drawControlPoints } from '../../rendering/canvas-utils';
 import type { GannFan } from './gann-fan';
 
-// Colors for different Gann angles
-const GANN_COLORS: Record<string, string> = {
-  '8x1': '#F44336',
-  '4x1': '#E91E63',
-  '3x1': '#9C27B0',
-  '2x1': '#673AB7',
-  '1x1': '#2196F3',
-  '1x2': '#00BCD4',
-  '1x3': '#4CAF50',
-  '1x4': '#8BC34A',
-  '1x8': '#CDDC39',
-};
+const HANDLE_COLOR = '#2962FF';
+const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+const LABEL_OFFSET_X = 4;
+const LABEL_OFFSET_Y = 1;
+const FONT_SIZE = 12;
 
 export class GannFanPaneView implements IPrimitivePaneView {
   private _renderer: GannFanPaneRenderer;
 
-  constructor(drawing: GannFan) {
-    this._renderer = new GannFanPaneRenderer(drawing);
+  constructor(
+    drawing: GannFan,
+    layer: 'body' | 'handles' = 'body'
+  ) {
+    this._renderer = new GannFanPaneRenderer(drawing, layer);
   }
 
   zOrder(): 'bottom' | 'normal' | 'top' {
@@ -37,98 +30,85 @@ export class GannFanPaneView implements IPrimitivePaneView {
 }
 
 class GannFanPaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: GannFan;
-
-  constructor(drawing: GannFan) {
-    this._drawing = drawing;
-  }
+  constructor(
+    private readonly _drawing: GannFan,
+    private readonly _layer: 'body' | 'handles'
+  ) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const drawing = this._drawing;
+    const viewport = drawing.getViewport();
+    if (!viewport || !drawing.options.visible || !drawing.isDisplayed()) return;
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
-
-    const anchors = this._drawing.anchors;
-    const p1 = this._drawing.anchorToPixel(anchors[0], viewport);
-    const p2 = this._drawing.anchorToPixel(anchors[1], viewport);
-
-    if (!p1 || !p2) return;
-
-    const options = this._drawing.gannOptions;
-    const angles = options.angles ?? GANN_FAN_ANGLES;
-
-    const dx = p2.x - p1.x;
-    const dy = p2.y - p1.y;
-    const baseLen = Math.sqrt(dx * dx + dy * dy);
-
-    if (baseLen === 0) return;
-
-    const unitX = dx / baseLen;
-    const unitY = dy / baseLen;
-
-    applyStyle(ctx, this._drawing.style, pixelRatio);
-
-    // Draw each fan line
-    for (const angle of angles) {
-      const fanDx = unitX * baseLen * 3;
-      const fanDy = unitY * baseLen * 3 * angle.ratio;
-
-      let end: Point = {
-        x: p1.x + fanDx,
-        y: p1.y + fanDy,
-      };
-
-      // Extend to viewport if enabled
-      if (options.extendLines) {
-        const extended = extendLineToViewport(p1, end, viewport.width, viewport.height, false, true);
-        end = extended.end;
+    if (this._layer === 'handles') {
+      const st = drawing.state;
+      if (st === 'selected' || st === 'editing' || st === 'hovered') {
+        ctx.save();
+        drawControlPoints(ctx, drawing.getControlPoints(viewport), null, pr, HANDLE_COLOR);
+        ctx.restore();
       }
-
-      // Use angle-specific color
-      const color = GANN_COLORS[angle.label] ?? this._drawing.style.lineColor;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = (angle.label === '1x1' ? 2 : 1) * this._drawing.style.lineWidth * pixelRatio;
-
-      drawLine(ctx, p1, end, pixelRatio);
-
-      // Draw label
-      if (options.showLabels) {
-        const labelPos = {
-          x: p1.x + fanDx * 0.3,
-          y: p1.y + fanDy * 0.3,
-        };
-
-        drawLabel(
-          ctx,
-          angle.label,
-          labelPos,
-          {
-            font: '10px sans-serif',
-            textColor: '#ffffff',
-            backgroundColor: color + 'CC',
-            padding: 2,
-            borderRadius: 2,
-          },
-          pixelRatio
-        );
-      }
+      return;
     }
 
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
+    const r = drawing.rays(viewport);
+    if (!r || r.rays.length === 0) return;
+    const o = drawing.gannOptions;
+    const { a, b } = r;
+    const reach = (viewport.width + viewport.height) * 4;
+    const tip = (ray: { dx: number; dy: number }) => {
+      const len = Math.hypot(ray.dx, ray.dy) || 1;
+      return { x: a.x + (ray.dx / len) * reach, y: a.y + (ray.dy / len) * reach };
+    };
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, viewport.width * pr, viewport.height * pr);
+    ctx.clip();
+
+    if (o.fillBackground !== false) {
+      ctx.globalAlpha = o.backgroundOpacity ?? 0.2;
+      for (const { from, to } of drawing.fills(r.rays)) {
+        const p = tip(from);
+        const q = tip(to);
+        ctx.fillStyle = from.level.color;
+        ctx.beginPath();
+        ctx.moveTo(a.x * pr, a.y * pr);
+        ctx.lineTo(p.x * pr, p.y * pr);
+        ctx.lineTo(q.x * pr, q.y * pr);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     }
+
+    ctx.lineCap = 'butt';
+    for (const ray of r.rays) {
+      const end = tip(ray);
+      ctx.lineWidth = Math.max(1, Math.round(ray.level.width * pr));
+      ctx.strokeStyle = ray.level.color;
+      ctx.setLineDash((ray.level.dash ?? []).map((d) => d * pr));
+      ctx.beginPath();
+      ctx.moveTo(a.x * pr, a.y * pr);
+      ctx.lineTo(end.x * pr, end.y * pr);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    if (o.showLabels !== false) {
+      ctx.font = `${FONT_SIZE * pr}px ${FONT_FAMILY}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      for (const ray of r.rays) {
+        const p = drawing.labelPoint(a, b, ray.level);
+        ctx.fillStyle = ray.level.color;
+        ctx.fillText(`${ray.level.coeff1}/${ray.level.coeff2}`, (p.x + LABEL_OFFSET_X) * pr, (p.y + LABEL_OFFSET_Y) * pr);
+      }
+    }
+    ctx.restore();
   }
 }

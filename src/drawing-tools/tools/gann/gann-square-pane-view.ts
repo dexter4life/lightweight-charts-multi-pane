@@ -1,20 +1,29 @@
 import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
-import type { Point } from '../../core/types';
-import { applyStyle, drawControlPoints, drawLine, drawRect } from '../../rendering/canvas-utils';
-import { GANN_SQUARE_DIVISIONS } from './constants';
+import { drawControlPoints } from '../../rendering/canvas-utils';
 import type { GannSquare } from './gann-square';
 
+const HANDLE_COLOR = '#2962FF';
+const LABEL_COLOR = '#787B86';
+const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+const LABEL_GAP_X = 15;
+const LABEL_GAP_ABOVE = 14;
+const LABEL_GAP_BELOW = 16;
+
+/** The square sits behind the candles while the handles stay on top of them. */
 export class GannSquarePaneView implements IPrimitivePaneView {
   private _renderer: GannSquarePaneRenderer;
 
-  constructor(drawing: GannSquare) {
-    this._renderer = new GannSquarePaneRenderer(drawing);
+  constructor(
+    drawing: GannSquare,
+    private readonly _layer: 'body' | 'handles' = 'body'
+  ) {
+    this._renderer = new GannSquarePaneRenderer(drawing, _layer);
   }
 
   zOrder(): 'bottom' | 'normal' | 'top' {
-    return 'normal';
+    return this._layer === 'body' ? 'bottom' : 'normal';
   }
 
   renderer(): IPrimitivePaneRenderer {
@@ -23,206 +32,136 @@ export class GannSquarePaneView implements IPrimitivePaneView {
 }
 
 class GannSquarePaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: GannSquare;
-
-  constructor(drawing: GannSquare) {
-    this._drawing = drawing;
-  }
+  constructor(
+    private readonly _drawing: GannSquare,
+    private readonly _layer: 'body' | 'handles'
+  ) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const drawing = this._drawing;
+    const viewport = drawing.getViewport();
+    if (!viewport || !drawing.options.visible || !drawing.isDisplayed()) return;
+    const layout = drawing.layout(viewport);
+    if (!layout) return;
 
+    ctx.save();
+    ctx.lineCap = 'butt';
+
+    if (this._layer === 'handles') {
+      const st = drawing.state;
+      if (st === 'selected' || st === 'editing' || st === 'hovered') {
+        drawControlPoints(ctx, drawing.getControlPoints(viewport), null, pr, HANDLE_COLOR);
+      }
+      ctx.restore();
+      return;
+    }
+
+    const o = drawing.gannOptions;
+    const { origin, left, right, top, bottom, ux, uy } = layout;
+    const crisp = (v: number, w: number) => (w % 2 === 1 ? Math.round(v * pr - 0.5) + 0.5 : Math.round(v * pr));
+    const lineWidth = (w: number) => Math.max(1, Math.round(w * pr));
+    const ellipse = (rx: number, ry: number, ccw = false) =>
+      ctx.ellipse(origin.x * pr, origin.y * pr, Math.max(rx, 0) * pr, Math.max(ry, 0) * pr, 0, 0, Math.PI * 2, ccw);
+
+    ctx.beginPath();
+    ctx.rect(left * pr, top * pr, (right - left) * pr, (bottom - top) * pr);
+    ctx.clip();
+
+    const arcs = (o.arcs ?? []).filter((a) => a.visible).sort((p, q) => drawing.arcRadii(layout, p).rho - drawing.arcRadii(layout, q).rho);
+
+    // Each band takes the colour of the larger arc that closes it.
+    if (o.arcsBackground !== false) {
+      ctx.globalAlpha = o.arcsOpacity ?? 0.2;
+      let inner: { rx: number; ry: number } | null = null;
+      for (const arc of arcs) {
+        const outer = drawing.arcRadii(layout, arc);
+        ctx.fillStyle = arc.color;
+        ctx.beginPath();
+        ellipse(outer.rx, outer.ry);
+        if (inner && inner.rx > 0) {
+          ctx.moveTo(origin.x * pr + inner.rx * pr, origin.y * pr);
+          ellipse(inner.rx, inner.ry, true);
+        }
+        ctx.fill('evenodd');
+        inner = outer;
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    (o.levels ?? []).forEach((l, i) => {
+      if (!l.visible) return;
+      const w = lineWidth(l.width);
+      ctx.lineWidth = w;
+      ctx.strokeStyle = l.color;
+      const y = origin.y + uy * i;
+      const x = origin.x + ux * i;
+      ctx.beginPath();
+      ctx.moveTo(left * pr, crisp(y, w));
+      ctx.lineTo(right * pr, crisp(y, w));
+      ctx.moveTo(crisp(x, w), top * pr);
+      ctx.lineTo(crisp(x, w), bottom * pr);
+      ctx.stroke();
+    });
+
+    for (const fan of o.fanlines ?? []) {
+      if (!fan.visible) continue;
+      const end = drawing.fanTip(layout, fan);
+      ctx.lineWidth = lineWidth(fan.width);
+      ctx.strokeStyle = fan.color;
+      ctx.beginPath();
+      ctx.moveTo(origin.x * pr, origin.y * pr);
+      ctx.lineTo(end.x * pr, end.y * pr);
+      ctx.stroke();
+    }
+
+    for (const arc of arcs) {
+      const r = drawing.arcRadii(layout, arc);
+      ctx.lineWidth = lineWidth(arc.width);
+      ctx.strokeStyle = arc.color;
+      ctx.beginPath();
+      ellipse(r.rx, r.ry);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    if (drawing.squareOptions.showLabels !== false && drawing.squareOptions.scaleRatio !== undefined) {
+      this.drawLabels(scope, layout);
+    }
+  }
+
+  /** Bars sit at the corner above or below the far point's column, the price range at the origin's column, the ratio at the far point. */
+  private drawLabels(scope: BitmapCoordinatesRenderingScope, layout: NonNullable<ReturnType<GannSquare['layout']>>): void {
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
     const viewport = this._drawing.getViewport();
     if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
+    const style = this._drawing.labelsStyle;
+    const texts = this._drawing.labelTexts(layout, viewport);
+    const { origin, far, left, right, top, bottom } = layout;
+    const midX = (left + right) / 2;
+    const midY = (top + bottom) / 2;
 
-    const anchors = this._drawing.anchors;
-    const center = this._drawing.anchorToPixel(anchors[0], viewport);
+    ctx.save();
+    ctx.fillStyle = LABEL_COLOR;
+    ctx.font = `${style.italic ? 'italic ' : ''}${style.bold ? 'bold ' : ''}${style.fontSize * pr}px ${FONT_FAMILY}`;
+    ctx.textBaseline = 'alphabetic';
+    const ascent = ctx.measureText('0').actualBoundingBoxAscent / pr;
 
-    if (!center) return;
-
-    const options = this._drawing.gannOptions;
-    const radius = this._drawing.getSquareRadius(viewport);
-    const divisions = options.divisions ?? GANN_SQUARE_DIVISIONS;
-
-    applyStyle(ctx, this._drawing.style, pixelRatio);
-
-    // Draw fill if enabled
-    if (options.filled && this._drawing.style.fillColor) {
-      ctx.fillStyle = this._drawing.style.fillColor;
-      ctx.fillRect(
-        (center.x - radius) * pixelRatio,
-        (center.y - radius) * pixelRatio,
-        radius * 2 * pixelRatio,
-        radius * 2 * pixelRatio
-      );
-    }
-
-    // Draw outer square
-    drawRect(ctx, { x: center.x - radius, y: center.y - radius }, radius * 2, radius * 2, false, pixelRatio);
-
-    // Draw concentric squares
-    ctx.globalAlpha = 0.4;
-    for (let i = 1; i < divisions; i++) {
-      const r = (radius * i) / divisions;
-      drawRect(ctx, { x: center.x - r, y: center.y - r }, r * 2, r * 2, false, pixelRatio);
-    }
-    ctx.globalAlpha = 1;
-
-    // Draw cardinal cross (horizontal and vertical through center)
-    if (options.showCardinalCross) {
-      ctx.globalAlpha = 0.8;
-      drawLine(ctx, { x: center.x - radius, y: center.y }, { x: center.x + radius, y: center.y }, pixelRatio);
-      drawLine(ctx, { x: center.x, y: center.y - radius }, { x: center.x, y: center.y + radius }, pixelRatio);
-      ctx.globalAlpha = 1;
-    }
-
-    // Draw ordinal cross (diagonals)
-    if (options.showDiagonals) {
-      ctx.globalAlpha = 0.6;
-      drawLine(
-        ctx,
-        { x: center.x - radius, y: center.y - radius },
-        { x: center.x + radius, y: center.y + radius },
-        pixelRatio
-      );
-      drawLine(
-        ctx,
-        { x: center.x - radius, y: center.y + radius },
-        { x: center.x + radius, y: center.y - radius },
-        pixelRatio
-      );
-      ctx.globalAlpha = 1;
-    }
-
-    // Draw spiral if enabled (Square of Nine pattern)
-    if (options.showSpiral) {
-      this.drawSpiral(ctx, center, radius, divisions, pixelRatio);
-    }
-
-    // Draw number labels if enabled
-    if (options.showLabels) {
-      this.drawNumberLabels(ctx, center, radius, divisions, pixelRatio);
-    }
-
-    // Draw center point marker
-    ctx.beginPath();
-    ctx.arc(center.x * pixelRatio, center.y * pixelRatio, 3 * pixelRatio, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
-    }
-  }
-
-  private drawSpiral(
-    ctx: CanvasRenderingContext2D,
-    center: Point,
-    radius: number,
-    _divisions: number,
-    pixelRatio: number
-  ): void {
-    ctx.globalAlpha = 0.5;
-    ctx.beginPath();
-
-    const totalRotations = 3;
-    const steps = 100;
-
-    for (let i = 0; i <= steps; i++) {
-      const t = (i / steps) * totalRotations * Math.PI * 2;
-      const r = (t / (totalRotations * Math.PI * 2)) * radius;
-      const x = center.x + r * Math.cos(t - Math.PI / 2);
-      const y = center.y + r * Math.sin(t - Math.PI / 2);
-
-      if (i === 0) {
-        ctx.moveTo(x * pixelRatio, y * pixelRatio);
-      } else {
-        ctx.lineTo(x * pixelRatio, y * pixelRatio);
-      }
-    }
-
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-
-  private drawNumberLabels(
-    ctx: CanvasRenderingContext2D,
-    center: Point,
-    radius: number,
-    divisions: number,
-    pixelRatio: number
-  ): void {
-    const cellSize = radius / divisions;
-    const fontSize = Math.max(8, Math.min(12, cellSize * 0.4));
-
-    ctx.font = `${fontSize * pixelRatio}px sans-serif`;
-    ctx.fillStyle = this._drawing.style.lineColor || '#fff';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    // Draw central 1
-    ctx.fillText('1', center.x * pixelRatio, center.y * pixelRatio);
-
-    // Draw numbers in spiral pattern (simplified)
-    let num = 2;
-    let layer = 1;
-    const maxLayers = Math.min(divisions, 4); // Limit labels to prevent clutter
-
-    while (layer <= maxLayers && num <= 81) {
-      const offset = cellSize * layer;
-
-      // Right side going up
-      for (let i = -layer + 1; i <= layer && num <= 81; i++) {
-        const x = center.x + offset;
-        const y = center.y - cellSize * i;
-        if (Math.abs(x - center.x) <= radius && Math.abs(y - center.y) <= radius) {
-          ctx.fillText(String(num), x * pixelRatio, y * pixelRatio);
-        }
-        num++;
-      }
-
-      // Top going left
-      for (let i = layer - 1; i >= -layer && num <= 81; i--) {
-        const x = center.x + cellSize * i;
-        const y = center.y - offset;
-        if (Math.abs(x - center.x) <= radius && Math.abs(y - center.y) <= radius) {
-          ctx.fillText(String(num), x * pixelRatio, y * pixelRatio);
-        }
-        num++;
-      }
-
-      // Left side going down
-      for (let i = -layer + 1; i <= layer && num <= 81; i++) {
-        const x = center.x - offset;
-        const y = center.y + cellSize * i;
-        if (Math.abs(x - center.x) <= radius && Math.abs(y - center.y) <= radius) {
-          ctx.fillText(String(num), x * pixelRatio, y * pixelRatio);
-        }
-        num++;
-      }
-
-      // Bottom going right
-      for (let i = -layer + 1; i <= layer && num <= 81; i++) {
-        const x = center.x + cellSize * i;
-        const y = center.y + offset;
-        if (Math.abs(x - center.x) <= radius && Math.abs(y - center.y) <= radius) {
-          ctx.fillText(String(num), x * pixelRatio, y * pixelRatio);
-        }
-        num++;
-      }
-
-      layer++;
-    }
+    const put = (text: string, cx: number, cy: number) => {
+      const onRight = cx >= midX;
+      const onTop = cy <= midY;
+      ctx.textAlign = onRight ? 'left' : 'right';
+      const x = onRight ? cx + LABEL_GAP_X : cx - LABEL_GAP_X;
+      const baseline = onTop ? cy - LABEL_GAP_ABOVE : cy + LABEL_GAP_BELOW + ascent;
+      ctx.fillText(text, x * pr, baseline * pr);
+    };
+    put(texts.bars, far.x, origin.y);
+    put(texts.price, origin.x, far.y);
+    put(texts.ratio, far.x, far.y);
+    ctx.restore();
   }
 }

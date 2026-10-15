@@ -635,8 +635,9 @@ export class PaneWidget
 					this._drawBackground(scope);
 				});
 				if (this._state) {
-					this._drawSources(target, sourceBottomPaneViews);
+					// The grid sits under the bottom layer so drawings tint it like they do the background.
 					this._drawGrid(target);
+					this._drawSources(target, sourceBottomPaneViews);
 					this._drawSources(target, sourcePaneViews);
 					this._drawSources(target, sourceLabelPaneViews);
 				}

@@ -354,7 +354,7 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
     type: 'gann-square-fixed',
     name: 'Gann Square Fixed',
     category: 'gann',
-    requiredAnchors: 1,
+    requiredAnchors: 2,
     factory: (id, anchors, style, options) => new GannSquareFixed(id, anchors, style, options),
   },
   {
