@@ -465,7 +465,7 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
     type: 'ellipse',
     name: 'Ellipse',
     category: 'shape',
-    requiredAnchors: 2,
+    requiredAnchors: 3,
     factory: (id, anchors, style, options) => new Ellipse(id, anchors, style, options),
   },
   {

@@ -145,7 +145,6 @@ export {
   PriceRangePaneView,
   type PriceRangeOptions,
   Ellipse,
-  EllipsePaneView,
   type EllipseOptions,
   Arc,
   ArcPaneView,

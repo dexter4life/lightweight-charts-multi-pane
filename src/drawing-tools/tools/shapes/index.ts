@@ -21,7 +21,6 @@ export { PriceRangePaneView } from './price-range-pane-view';
 
 // Ellipse
 export { Ellipse, type EllipseOptions } from './ellipse';
-export { EllipsePaneView } from './ellipse-pane-view';
 
 // Arc
 export { Arc, type ArcOptions } from './arc';
