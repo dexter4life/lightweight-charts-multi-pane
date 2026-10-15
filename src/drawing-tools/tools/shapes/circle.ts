@@ -1,33 +1,17 @@
-import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
-
-import { Drawing } from '../../core/drawing';
-import type { Anchor, Point, Viewport, DrawingStyle, DrawingOptions, IDrawing } from '../../core/types';
-import type { Geometry, ArcGeometry } from '../../core/geometry';
 import { distanceBetweenPoints } from '../../core/geometry';
-import { CirclePaneView } from './circle-pane-view';
+import type { Geometry, ArcGeometry } from '../../core/geometry';
+import type { Anchor, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
+import { ShapeBase, type ShapeOptions } from './shape-base';
+
+export type CircleOptions = ShapeOptions;
+
+const HIT_THRESHOLD = 4;
 
 /**
- * Circle options
+ * Circle - centre plus a point on the circumference. The radius is the pixel distance between them.
  */
-export interface CircleOptions extends DrawingOptions {
-  filled?: boolean;
-}
-
-/**
- * Circle - A circular shape defined by center and edge point.
- *
- * Features:
- * - Two anchor points (center and edge)
- * - Radius determined by distance between points
- * - Optional fill
- */
-export class Circle extends Drawing {
+export class Circle extends ShapeBase {
   readonly type = 'circle';
-
-  protected static readonly REQUIRED_ANCHORS = 2;
-  protected static readonly HIT_THRESHOLD = 5;
-
-  private _circleOptions: CircleOptions;
 
   constructor(
     id: string,
@@ -35,102 +19,66 @@ export class Circle extends Drawing {
     style: Partial<DrawingStyle> = {},
     options: Partial<CircleOptions> = {}
   ) {
-    const { filled, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
-
-    this._circleOptions = {
-      ...this._options,
-      filled: filled ?? true,
-    };
+    super(id, anchors, style, options, { lineColor: '#F19D38', lineWidth: 1, lineDash: [], fillColor: 'rgba(241, 157, 56, 0.2)' });
   }
 
+  /** Kept for callers of the previous API. */
   get circleOptions(): CircleOptions {
-    return this._circleOptions;
+    return this._shapeOptions;
   }
 
   setCircleOptions(options: Partial<CircleOptions>): void {
-    this._circleOptions = { ...this._circleOptions, ...options };
-    this.requestUpdate();
+    this.setShapeOptions(options);
   }
 
   isValid(): boolean {
-    return this._anchors.length >= Circle.REQUIRED_ANCHORS;
+    return this._anchors.length >= 2;
   }
 
-  paneViews(): IPrimitivePaneView[] {
-    return [new CirclePaneView(this)];
+  private circle(viewport: Viewport): { center: Point; radius: number } | null {
+    if (!this.isValid()) return null;
+    const center = this.anchorToPixel(this._anchors[0], viewport);
+    const edge = this.anchorToPixel(this._anchors[1], viewport);
+    if (!center || !edge) return null;
+    return { center, radius: distanceBetweenPoints(center, edge) };
+  }
+
+  tracePath(ctx: CanvasRenderingContext2D, pr: number, viewport: Viewport): boolean {
+    const c = this.circle(viewport);
+    if (!c) return false;
+    ctx.arc(c.center.x * pr, c.center.y * pr, c.radius * pr, 0, Math.PI * 2);
+    return true;
+  }
+
+  textCenter(viewport: Viewport): Point | null {
+    return this.circle(viewport)?.center ?? null;
   }
 
   computeGeometry(viewport: Viewport): Geometry[] {
-    if (!this.isValid()) return [];
-
-    const center = this.anchorToPixel(this._anchors[0], viewport);
-    const edge = this.anchorToPixel(this._anchors[1], viewport);
-
-    if (!center || !edge) return [];
-
-    const radius = distanceBetweenPoints(center, edge);
-
-    const arcGeometry: ArcGeometry = {
-      type: 'arc',
-      center,
-      radius,
-      startAngle: 0,
-      endAngle: Math.PI * 2,
-    };
-
-    return [arcGeometry];
+    const c = this.circle(viewport);
+    if (!c) return [];
+    const arc: ArcGeometry = { type: 'arc', center: c.center, radius: c.radius, startAngle: 0, endAngle: Math.PI * 2 };
+    return [arc];
   }
 
   testHit(point: Point, viewport: Viewport): boolean {
-    if (!this.isValid()) return false;
-
-    const center = this.anchorToPixel(this._anchors[0], viewport);
-    const edge = this.anchorToPixel(this._anchors[1], viewport);
-
-    if (!center || !edge) return false;
-
-    const radius = distanceBetweenPoints(center, edge);
-    const distToCenter = distanceBetweenPoints(point, center);
-
-    if (this._circleOptions.filled) {
-      return distToCenter <= radius;
-    }
-
-    // Check if near the circumference
-    return Math.abs(distToCenter - radius) <= Circle.HIT_THRESHOLD;
+    if (!this.isDisplayed()) return false;
+    const c = this.circle(viewport);
+    if (!c) return false;
+    const d = distanceBetweenPoints(point, c.center);
+    if (this._shapeOptions.filled) return d <= c.radius + HIT_THRESHOLD;
+    return Math.abs(d - c.radius) <= HIT_THRESHOLD;
   }
 
-  /**
-   * Get the radius in pixels (requires viewport)
-   */
   getRadius(viewport: Viewport): number {
-    if (!this.isValid()) return 0;
-
-    const center = this.anchorToPixel(this._anchors[0], viewport);
-    const edge = this.anchorToPixel(this._anchors[1], viewport);
-
-    if (!center || !edge) return 0;
-
-    return distanceBetweenPoints(center, edge);
+    return this.circle(viewport)?.radius ?? 0;
   }
 
   clone(newId: string): IDrawing {
-    return new Circle(
-      newId,
-      [...this._anchors],
-      { ...this._style },
-      { ...this._circleOptions }
-    );
+    return new Circle(newId, [...this._anchors], { ...this._style }, { ...this._options, ...this._shapeOptions });
   }
 
-  static create(
-    id: string,
-    center: Anchor,
-    edge: Anchor,
-    style?: Partial<DrawingStyle>,
-    options?: Partial<CircleOptions>
-  ): Circle {
+  static create(id: string, center: Anchor, edge: Anchor, style?: Partial<DrawingStyle>, options?: Partial<CircleOptions>): Circle {
     return new Circle(id, [center, edge], style, options);
   }
 }

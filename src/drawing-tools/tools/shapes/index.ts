@@ -8,7 +8,8 @@ export { RotatedRectanglePaneView } from './rotated-rectangle-pane-view';
 
 // Circle
 export { Circle, type CircleOptions } from './circle';
-export { CirclePaneView } from './circle-pane-view';
+export { ShapeBase, DEFAULT_SHAPE_OPTIONS, type ShapeOptions } from './shape-base';
+export { ShapePaneView } from './shape-pane-view';
 
 // Triangle
 export { Triangle, type TriangleOptions } from './triangle';

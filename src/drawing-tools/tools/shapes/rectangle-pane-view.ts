@@ -117,7 +117,7 @@ class RectanglePaneRenderer implements IPrimitivePaneRenderer {
       const y = p.y * pr;
       ctx.beginPath();
       if (p.index < 4) {
-        ctx.arc(x, y, 5.75 * pr, 0, Math.PI * 2);
+        ctx.arc(x, y, 5.25 * pr, 0, Math.PI * 2);
       } else {
         const half = 4.75 * pr;
         ctx.roundRect(x - half, y - half, half * 2, half * 2, 3 * pr);
