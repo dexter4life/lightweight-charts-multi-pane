@@ -1,19 +1,27 @@
 import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
-import { applyStyle, drawControlPoints, drawLine, drawText } from '../../rendering/canvas-utils';
-import { FIB_TIME_INTERVALS } from './constants';
+import { applyStyle, drawControlPoints, drawLine } from '../../rendering/canvas-utils';
 import type { FibTimeZone } from './fib-time-zone';
 
+const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+const HANDLE_COLOR = '#2962FF';
+const LABEL_GAP = 7;
+const LABEL_EDGE = 5.5;
+
+/** The lines sit behind the candles while the handles stay on top of them. */
 export class FibTimeZonePaneView implements IPrimitivePaneView {
   private _renderer: FibTimeZonePaneRenderer;
 
-  constructor(drawing: FibTimeZone) {
-    this._renderer = new FibTimeZonePaneRenderer(drawing);
+  constructor(
+    drawing: FibTimeZone,
+    private readonly _layer: 'body' | 'handles' = 'body'
+  ) {
+    this._renderer = new FibTimeZonePaneRenderer(drawing, _layer);
   }
 
   zOrder(): 'bottom' | 'normal' | 'top' {
-    return 'normal';
+    return this._layer === 'body' ? 'bottom' : 'normal';
   }
 
   renderer(): IPrimitivePaneRenderer {
@@ -22,87 +30,81 @@ export class FibTimeZonePaneView implements IPrimitivePaneView {
 }
 
 class FibTimeZonePaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: FibTimeZone;
-
-  constructor(drawing: FibTimeZone) {
-    this._drawing = drawing;
-  }
+  constructor(
+    private readonly _drawing: FibTimeZone,
+    private readonly _layer: 'body' | 'handles'
+  ) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const drawing = this._drawing;
+    const viewport = drawing.getViewport();
+    if (!viewport || !drawing.options.visible || !drawing.isDisplayed()) return;
+    const layout = drawing.layout(viewport);
+    if (!layout) return;
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
+    const o = drawing.fibOptions;
+    const state = drawing.state;
+    ctx.save();
+    ctx.lineCap = 'butt';
 
-    const anchors = this._drawing.anchors;
-    const p1 = this._drawing.anchorToPixel(anchors[0], viewport);
-    const p2 = this._drawing.anchorToPixel(anchors[1], viewport);
-
-    if (!p1 || !p2) return;
-
-    const options = this._drawing.fibOptions;
-    const intervals = options.intervals ?? FIB_TIME_INTERVALS;
-    const unitWidth = p2.x - p1.x;
-
-    applyStyle(ctx, this._drawing.style, pixelRatio);
-
-    // Draw fill between zones if enabled
-    if (options.filled && this._drawing.style.fillColor) {
-      ctx.fillStyle = this._drawing.style.fillColor;
-      for (let i = 0; i < intervals.length - 1; i++) {
-        const x1 = p1.x + unitWidth * intervals[i];
-        const x2 = p1.x + unitWidth * intervals[i + 1];
-
-        // Alternate fill for visual distinction
-        if (i % 2 === 0) {
-          ctx.fillRect(
-            x1 * pixelRatio,
-            0,
-            (x2 - x1) * pixelRatio,
-            viewport.height * pixelRatio
-          );
-        }
+    if (this._layer === 'handles') {
+      if (state === 'selected' || state === 'editing' || state === 'hovered') {
+        drawControlPoints(ctx, drawing.getControlPoints(viewport), null, pr, HANDLE_COLOR);
       }
+      ctx.restore();
+      return;
     }
 
-    // Draw vertical lines
-    for (let i = 0; i < intervals.length; i++) {
-      const interval = intervals[i];
-      const x = p1.x + unitWidth * interval;
-
-      // Skip if off screen
-      if (x < 0 || x > viewport.width) continue;
-
-      const start = { x, y: 0 };
-      const end = { x, y: viewport.height };
-
-      // Main Fibonacci numbers get solid lines, others get lighter
-      const isFibNumber = [0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89].includes(interval);
-      ctx.globalAlpha = isFibNumber ? 1 : 0.5;
-      drawLine(ctx, start, end, pixelRatio);
+    // Each band takes the colour of its right-hand (higher) level and runs to the pane edge past the last one.
+    if (o.backgroundVisible) {
+      ctx.globalAlpha = o.backgroundOpacity ?? 0.2;
+      const all = layout.all;
+      for (let i = 1; i < all.length; i++) {
+        const left = Math.max(0, all[i - 1].x);
+        const right = Math.min(viewport.width, all[i].x);
+        if (right <= left) continue;
+        ctx.fillStyle = all[i].level.color;
+        ctx.fillRect(left * pr, 0, (right - left) * pr, viewport.height * pr);
+      }
       ctx.globalAlpha = 1;
+    }
 
-      // Draw label at top
-      if (options.showLabels) {
-        const text = String(interval);
-        drawText(ctx, text, { x: x + 3, y: 15 }, '10px sans-serif', this._drawing.style.lineColor || '#fff', 'left', 'middle', pixelRatio);
+    for (const l of layout.lines) {
+      ctx.strokeStyle = l.level.color;
+      ctx.lineWidth = Math.max(1, Math.round((l.level.width ?? 1) * pr));
+      ctx.setLineDash((l.level.dash ?? []).map((d) => d * pr));
+      const x = Math.round(l.x * pr - 0.5) + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, viewport.height * pr);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    if (o.trendLineVisible !== false) {
+      applyStyle(ctx, drawing.style, pr);
+      drawLine(ctx, layout.a, layout.b, pr);
+    }
+
+    if (o.showLabels !== false) {
+      const size = o.fontSize ?? 12;
+      ctx.font = `${size * pr}px ${FONT_FAMILY}`;
+      const h = o.labelHAlign ?? 'right';
+      const v = o.labelVAlign ?? 'bottom';
+      ctx.textAlign = h === 'right' ? 'left' : h === 'left' ? 'right' : 'center';
+      ctx.textBaseline = v === 'top' ? 'top' : v === 'middle' ? 'middle' : 'alphabetic';
+      const y = v === 'top' ? LABEL_EDGE : v === 'middle' ? viewport.height / 2 : viewport.height - LABEL_EDGE;
+      for (const l of layout.lines) {
+        const x = h === 'right' ? l.x + LABEL_GAP : h === 'left' ? l.x - LABEL_GAP : l.x;
+        ctx.fillStyle = l.level.color;
+        ctx.fillText(String(l.level.value), x * pr, y * pr);
       }
     }
-
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
-    }
+    ctx.restore();
   }
 }

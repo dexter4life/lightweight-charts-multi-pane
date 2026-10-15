@@ -1,39 +1,22 @@
-import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
-
-import { Drawing } from '../../core/drawing';
-import type { Geometry, LineGeometry } from '../../core/geometry';
-import type { Anchor, DrawingOptions, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
-import { FIB_EXTENSION_LEVELS } from './constants';
-import { FibExtensionPaneView } from './fib-extension-pane-view';
+import type { Anchor, DrawingStyle, IDrawing, Viewport } from '../../core/types';
+import {
+  FibRetracement,
+  type FibLayout,
+  type FibLevelLine,
+  type FibRetracementOptions,
+} from '../channels/fib-retracement';
 
 /** Standard Fibonacci extension levels (re-exported for public API compatibility). */
 export { FIB_EXTENSION_LEVELS } from './constants';
 
-/**
- * FibExtension options
- */
-export interface FibExtensionOptions extends DrawingOptions {
-  levels?: number[];
-  showPrices?: boolean;
-  showPercentages?: boolean;
-  extendLines?: boolean;
-}
+export type FibExtensionOptions = FibRetracementOptions;
 
 /**
- * FibExtension - Fibonacci extension levels based on three points.
- *
- * Features:
- * - Three anchor points (A, B, C - swing high/low/retracement)
- * - Extension levels projected from point C
- * - Optional price and percentage labels
+ * Trend-Based Fib Extension: three points A, B, C. Each level sits at
+ * `C + (B − A) × value` and is drawn horizontally from B to C (or extended).
  */
-export class FibExtension extends Drawing {
-  readonly type = 'fib-extension';
-
-  protected static readonly REQUIRED_ANCHORS = 3;
-  protected static readonly HIT_THRESHOLD = 5;
-
-  private _fibOptions: FibExtensionOptions;
+export class FibExtension extends FibRetracement {
+  override readonly type: string = 'fib-extension';
 
   constructor(
     id: string,
@@ -41,121 +24,56 @@ export class FibExtension extends Drawing {
     style: Partial<DrawingStyle> = {},
     options: Partial<FibExtensionOptions> = {}
   ) {
-    const { levels, showPrices, showPercentages, extendLines, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
-
-    this._fibOptions = {
-      ...this._options,
-      levels: levels ?? FIB_EXTENSION_LEVELS,
-      showPrices: showPrices ?? true,
-      showPercentages: showPercentages ?? true,
-      extendLines: extendLines ?? false,
-    };
+    super(id, anchors, style, options);
   }
 
-  get fibOptions(): FibExtensionOptions {
-    return this._fibOptions;
+  override isValid(): boolean {
+    return this._anchors.length >= 3;
   }
 
-  setFibOptions(options: Partial<FibExtensionOptions>): void {
-    this._fibOptions = { ...this._fibOptions, ...options };
-    this.requestUpdate();
+  override getPriceAtLevel(value: number): number {
+    if (!this.isValid()) return 0;
+    const [a, b, c] = this._anchors;
+    const sign = this._fibOptions.reverse ? -1 : 1;
+    return c.price + (b.price - a.price) * value * sign;
   }
 
-  isValid(): boolean {
-    return this._anchors.length >= FibExtension.REQUIRED_ANCHORS;
-  }
-
-  paneViews(): IPrimitivePaneView[] {
-    return [new FibExtensionPaneView(this)];
-  }
-
-  computeGeometry(viewport: Viewport): Geometry[] {
-    if (!this.isValid()) return [];
-
+  override layout(viewport: Viewport): FibLayout | null {
+    if (!this.isValid()) return null;
     const pA = this.anchorToPixel(this._anchors[0], viewport);
     const pB = this.anchorToPixel(this._anchors[1], viewport);
     const pC = this.anchorToPixel(this._anchors[2], viewport);
+    if (!pA || !pB || !pC) return null;
 
-    if (!pA || !pB || !pC) return [];
-
-    const geometries: Geometry[] = [];
-    const levels = this._fibOptions.levels ?? FIB_EXTENSION_LEVELS;
-
-    // Price range from A to B
-    const priceA = this._anchors[0].price;
-    const priceB = this._anchors[1].price;
-    const priceC = this._anchors[2].price;
-    const range = priceB - priceA;
-
-    for (const level of levels) {
-      // Extension from C
-      const price = priceC + range * level;
-      const y = viewport.priceScale.priceToCoordinate(price);
-      if (y === null) continue;
-
-      const startX = this._fibOptions.extendLines ? 0 : pC.x;
-      const endX = this._fibOptions.extendLines ? viewport.width : viewport.width;
-
-      geometries.push({
-        type: 'line',
-        start: { x: startX, y },
-        end: { x: endX, y },
-      } as LineGeometry);
+    const placed = this._placedCount ?? 3;
+    // Until B is placed only the A→cursor segment shows; C is the live cursor afterwards.
+    if (placed < 2) {
+      return { p1: pA, p2: pB, trend: [pA, pB], x1: pA.x, x2: pB.x, lines: [] };
     }
 
-    return geometries;
-  }
-
-  /**
-   * Get price at a specific extension level
-   */
-  getPriceAtLevel(level: number): number {
-    if (!this.isValid()) return 0;
-
-    const priceA = this._anchors[0].price;
-    const priceB = this._anchors[1].price;
-    const priceC = this._anchors[2].price;
-    const range = priceB - priceA;
-
-    return priceC + range * level;
-  }
-
-  testHit(point: Point, viewport: Viewport): boolean {
-    if (!this.isValid()) return false;
-
-    const pC = this.anchorToPixel(this._anchors[2], viewport);
-    if (!pC) return false;
-
-    const levels = this._fibOptions.levels ?? FIB_EXTENSION_LEVELS;
-    const priceA = this._anchors[0].price;
-    const priceB = this._anchors[1].price;
-    const priceC = this._anchors[2].price;
-    const range = priceB - priceA;
-
-    for (const level of levels) {
-      const price = priceC + range * level;
+    const lines: FibLevelLine[] = [];
+    const enabled = (this._fibOptions.levels ?? []).filter((l) => l.enabled).sort((a, b) => a.value - b.value);
+    for (const level of enabled) {
+      const price = this.getPriceAtLevel(level.value);
       const y = viewport.priceScale.priceToCoordinate(price);
-      if (y === null) continue;
-
-      if (Math.abs(point.y - y) <= FibExtension.HIT_THRESHOLD) {
-        return true;
-      }
+      if (y !== null) lines.push({ level, price, y });
     }
 
-    return false;
+    return {
+      p1: pA,
+      p2: pB,
+      trend: [pA, pB, pC],
+      x1: this._options.extendLeft ? 0 : Math.min(pB.x, pC.x),
+      x2: this._options.extendRight ? viewport.width : Math.max(pB.x, pC.x),
+      lines,
+    };
   }
 
-  clone(newId: string): IDrawing {
-    return new FibExtension(
-      newId,
-      [...this._anchors],
-      { ...this._style },
-      { ...this._fibOptions }
-    );
+  override clone(newId: string): IDrawing {
+    return new FibExtension(newId, [...this._anchors], { ...this._style }, { ...this._options, ...this._fibOptions });
   }
 
-  static create(
+  static createExtension(
     id: string,
     pointA: Anchor,
     pointB: Anchor,

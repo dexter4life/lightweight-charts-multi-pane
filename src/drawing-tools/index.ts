@@ -203,6 +203,9 @@ export {
   FibTimeZone,
   FibTimeZonePaneView,
   type FibTimeZoneOptions,
+  type FibTimeZoneLevel,
+  defaultFibTimeZoneLevels,
+  DEFAULT_FIB_TIME_ZONE_OPTIONS,
   FIB_TIME_INTERVALS,
   FibSpeedFan,
   FibSpeedFanPaneView,
@@ -236,17 +239,20 @@ export {
 
 // ============ Pitchfork Tools ============
 export {
+  Pitchfork,
+  PitchforkPaneView,
+  defaultPitchforkLevels,
+  DEFAULT_PITCHFORK_OPTIONS,
+  type PitchforkOptions,
+  type PitchforkLevel,
+  type PitchforkVariant,
   AndrewsPitchfork,
-  AndrewsPitchforkPaneView,
   type AndrewsPitchforkOptions,
   SchiffPitchfork,
-  SchiffPitchforkPaneView,
   type SchiffPitchforkOptions,
   ModifiedSchiffPitchfork,
-  ModifiedSchiffPitchforkPaneView,
   type ModifiedSchiffPitchforkOptions,
   InsidePitchfork,
-  InsidePitchforkPaneView,
   type InsidePitchforkOptions,
 } from './tools/pitchforks';
 

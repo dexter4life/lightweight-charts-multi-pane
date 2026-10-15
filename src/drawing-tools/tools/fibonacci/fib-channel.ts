@@ -1,42 +1,49 @@
-import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
-
-import { Drawing } from '../../core/drawing';
+import type { Anchor, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
 import type { Geometry, LineGeometry } from '../../core/geometry';
-import { distanceToLineSegment } from '../../core/geometry';
-import type { Anchor, DrawingOptions, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
-import { FIB_CHANNEL_LEVELS } from './constants';
+import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
+import {
+  FibRetracement,
+  measureText,
+  type FibLabelItem,
+  type FibLayout,
+  type FibLevel,
+  type FibRetracementOptions,
+} from '../channels/fib-retracement';
 import { FibChannelPaneView } from './fib-channel-pane-view';
 
 /** Standard Fibonacci channel levels (re-exported for public API compatibility). */
 export { FIB_CHANNEL_LEVELS } from './constants';
 
-/**
- * FibChannel options
- */
-export interface FibChannelOptions extends DrawingOptions {
-  levels?: number[];
-  showPrices?: boolean;
-  showPercentages?: boolean;
-  extendLines?: boolean;
-  filled?: boolean;
+export type FibChannelOptions = FibRetracementOptions;
+
+export interface FibChannelSegment {
+  level: FibLevel;
+  price: number;
+  /** Start of the level line (`A + value × (C − A)`), before extension. */
+  start: Point;
+  /** End of the level line (`B + value × (C − A)`), before extension. */
+  end: Point;
+  /** Drawn endpoints, after left/right extension. */
+  a: Point;
+  b: Point;
 }
 
+export interface FibChannelLayout extends FibLayout {
+  segments: FibChannelSegment[];
+  /** Thin A→cursor guide shown until the second point is placed. */
+  guide: [Point, Point] | null;
+}
+
+const LABEL_GAP = 8;
+const V_SHIFT = 10;
+const EXTEND = 1e4;
+
 /**
- * FibChannel - Fibonacci Channel with parallel trend lines at Fibonacci ratios.
- *
- * Features:
- * - Three anchor points (two for baseline, one for channel width)
- * - Multiple parallel lines at Fibonacci levels
- * - Optional fill between levels
- * - Optional line extensions
+ * Fib Channel: three points A, B, C. Every level line is segment AB translated by
+ * `value × (C − A)`, so level 0 is AB and level 1 starts at C.
  */
-export class FibChannel extends Drawing {
-  readonly type = 'fib-channel';
-
-  protected static readonly REQUIRED_ANCHORS = 3;
-  protected static readonly HIT_THRESHOLD = 5;
-
-  private _fibOptions: FibChannelOptions;
+export class FibChannel extends FibRetracement {
+  override readonly type: string = 'fib-channel';
 
   constructor(
     id: string,
@@ -44,133 +51,152 @@ export class FibChannel extends Drawing {
     style: Partial<DrawingStyle> = {},
     options: Partial<FibChannelOptions> = {}
   ) {
-    const { levels, showPrices, showPercentages, extendLines, filled, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
-
-    this._fibOptions = {
-      ...this._options,
-      levels: levels ?? FIB_CHANNEL_LEVELS,
-      showPrices: showPrices ?? true,
-      showPercentages: showPercentages ?? true,
-      extendLines: extendLines ?? false,
-      filled: filled ?? true,
-    };
+    super(id, anchors, style, { trendLineVisible: false, labelVAlign: 'middle', ...options });
   }
 
-  get fibOptions(): FibChannelOptions {
-    return this._fibOptions;
+  override isValid(): boolean {
+    return this._anchors.length >= 3;
   }
 
-  setFibOptions(options: Partial<FibChannelOptions>): void {
-    this._fibOptions = { ...this._fibOptions, ...options };
-    this.requestUpdate();
-  }
-
-  isValid(): boolean {
-    return this._anchors.length >= FibChannel.REQUIRED_ANCHORS;
-  }
-
-  paneViews(): IPrimitivePaneView[] {
+  override paneViews(): IPrimitivePaneView[] {
     return [new FibChannelPaneView(this)];
   }
 
-  /**
-   * Calculate the perpendicular offset from baseline to p3
-   */
-  calculateOffset(p1: Point, p2: Point, p3: Point): Point {
-    const dx = p2.x - p1.x;
-    const dy = p2.y - p1.y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-
-    if (len === 0) return { x: 0, y: p3.y - p1.y };
-
-    const nx = -dy / len;
-    const ny = dx / len;
-
-    const vx = p3.x - p1.x;
-    const vy = p3.y - p1.y;
-
-    const dist = vx * nx + vy * ny;
-
-    return { x: nx * dist, y: ny * dist };
+  override getPriceAtLevel(value: number): number {
+    if (!this.isValid()) return 0;
+    const [a, , c] = this._anchors;
+    return a.price + (c.price - a.price) * value;
   }
 
-  computeGeometry(viewport: Viewport): Geometry[] {
-    if (!this.isValid()) return [];
+  channelLayout(viewport: Viewport): FibChannelLayout | null {
+    if (!this.isValid()) return null;
+    const pA = this.anchorToPixel(this._anchors[0], viewport);
+    const pB = this.anchorToPixel(this._anchors[1], viewport);
+    const pC = this.anchorToPixel(this._anchors[2], viewport);
+    if (!pA || !pB || !pC) return null;
 
-    const p1 = this.anchorToPixel(this._anchors[0], viewport);
-    const p2 = this.anchorToPixel(this._anchors[1], viewport);
-    const p3 = this.anchorToPixel(this._anchors[2], viewport);
+    const placed = this._placedCount ?? 3;
+    const base = { p1: pA, p2: pB, trend: [pA, pB], x1: pA.x, x2: pB.x, lines: [] };
+    if (placed < 2) return { ...base, segments: [], guide: [pA, pB] };
 
-    if (!p1 || !p2 || !p3) return [];
+    const [a, b, c] = this._anchors;
+    const scale = viewport.priceScale;
+    const enabled = (this._fibOptions.levels ?? []).filter((l) => l.enabled).sort((p, q) => p.value - q.value);
+    const dx = pB.x - pA.x;
+    const len = Math.hypot(dx, pB.y - pA.y) || 1;
+    const t0 = this._options.extendLeft ? -EXTEND / len : 0;
+    const t1 = this._options.extendRight ? 1 + EXTEND / len : 1;
 
-    const geometries: Geometry[] = [];
-    const levels = this._fibOptions.levels ?? FIB_CHANNEL_LEVELS;
-    const offset = this.calculateOffset(p1, p2, p3);
-
-    for (const level of levels) {
-      const offsetX = offset.x * level;
-      const offsetY = offset.y * level;
-
-      const start = { x: p1.x + offsetX, y: p1.y + offsetY };
-      const end = { x: p2.x + offsetX, y: p2.y + offsetY };
-
-      geometries.push({
-        type: 'line',
-        start,
-        end,
-        extendLeft: this._fibOptions.extendLines,
-        extendRight: this._fibOptions.extendLines,
-      } as LineGeometry);
+    const segments: FibChannelSegment[] = [];
+    for (const level of enabled) {
+      const v = level.value;
+      const price = a.price + (c.price - a.price) * v;
+      const ys = scale.priceToCoordinate(price);
+      const ye = scale.priceToCoordinate(b.price + (c.price - a.price) * v);
+      if (ys === null || ye === null) continue;
+      const shift = (pC.x - pA.x) * v;
+      const start = { x: pA.x + shift, y: ys };
+      const end = { x: pB.x + shift, y: ye };
+      const at = (t: number): Point => ({ x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t });
+      segments.push({ level, price, start, end, a: at(t0), b: at(t1) });
     }
 
-    return geometries;
+    return {
+      ...base,
+      lines: segments.map((s) => ({ level: s.level, price: s.price, y: s.start.y })),
+      segments,
+      guide: null,
+    };
   }
 
-  testHit(point: Point, viewport: Viewport): boolean {
-    if (!this.isValid()) return false;
+  override layout(viewport: Viewport): FibChannelLayout | null {
+    return this.channelLayout(viewport);
+  }
 
-    const p1 = this.anchorToPixel(this._anchors[0], viewport);
-    const p2 = this.anchorToPixel(this._anchors[1], viewport);
-    const p3 = this.anchorToPixel(this._anchors[2], viewport);
+  override labelItems(layout: FibLayout, paneWidth: number): FibLabelItem[] {
+    void paneWidth;
+    const segments = (layout as FibChannelLayout).segments ?? [];
+    const o = this._fibOptions;
+    if (!o.showLevels && !o.showPrices) return [];
+    const size = o.fontSize ?? 12;
+    const h = o.labelHAlign ?? 'left';
+    const v = o.labelVAlign ?? 'middle';
+    const shift = v === 'top' ? V_SHIFT : v === 'bottom' ? -V_SHIFT : 0;
 
-    if (!p1 || !p2 || !p3) return false;
-
-    const levels = this._fibOptions.levels ?? FIB_CHANNEL_LEVELS;
-    const offset = this.calculateOffset(p1, p2, p3);
-
-    for (const level of levels) {
-      const offsetX = offset.x * level;
-      const offsetY = offset.y * level;
-
-      const start = { x: p1.x + offsetX, y: p1.y + offsetY };
-      const end = { x: p2.x + offsetX, y: p2.y + offsetY };
-
-      if (distanceToLineSegment(point, start, end) <= FibChannel.HIT_THRESHOLD) {
-        return true;
+    return segments.map((s) => {
+      const parts: string[] = [];
+      if (o.showLevels) {
+        parts.push(o.levelsMode === 'percents' ? `${(s.level.value * 100).toFixed(2)}%` : `${s.level.value}`);
       }
-    }
+      if (o.showPrices) parts.push(`(${this.formatPrice(s.price)})`);
+      const text = parts.join('');
+      const width = measureText(text, size);
 
+      let x: number;
+      let align: FibLabelItem['align'];
+      let y: number;
+      if (h === 'left') {
+        [x, align, y] = [s.start.x - LABEL_GAP, 'right', s.start.y];
+      } else if (h === 'right') {
+        [x, align, y] = [s.end.x + LABEL_GAP, 'left', s.end.y];
+      } else {
+        [x, align, y] = [(s.start.x + s.end.x) / 2, 'center', (s.start.y + s.end.y) / 2];
+      }
+      const baseline = y + shift + size * 0.36;
+      const left = align === 'left' ? x : align === 'right' ? x - width : x - width / 2;
+      return {
+        text,
+        x,
+        align,
+        baseline,
+        color: s.level.color,
+        box: { left: left - 3, right: left + width + 3, top: baseline - size, bottom: baseline + 3 },
+      };
+    });
+  }
+
+  override computeGeometry(viewport: Viewport): Geometry[] {
+    const layout = this.channelLayout(viewport);
+    if (!layout) return [];
+    return layout.segments.map((s): LineGeometry => ({ type: 'line', start: s.a, end: s.b }));
+  }
+
+  override testHit(point: Point, viewport: Viewport): boolean {
+    if (!this.isDisplayed()) return false;
+    const layout = this.channelLayout(viewport);
+    if (!layout) return false;
+    const t = FibRetracement['HIT_THRESHOLD'];
+
+    if (layout.guide) return distToSegment(point, layout.guide[0], layout.guide[1]) <= t;
+    for (const s of layout.segments) {
+      if (distToSegment(point, s.a, s.b) <= t) return true;
+    }
+    for (const { box } of this.labelItems(layout, viewport.width)) {
+      if (point.x >= box.left && point.x <= box.right && point.y >= box.top && point.y <= box.bottom) return true;
+    }
     return false;
   }
 
-  clone(newId: string): IDrawing {
-    return new FibChannel(
-      newId,
-      [...this._anchors],
-      { ...this._style },
-      { ...this._fibOptions }
-    );
+  override clone(newId: string): IDrawing {
+    return new FibChannel(newId, [...this._anchors], { ...this._style }, { ...this._options, ...this._fibOptions });
   }
 
-  static create(
+  static createChannel(
     id: string,
-    start: Anchor,
-    end: Anchor,
-    width: Anchor,
+    pointA: Anchor,
+    pointB: Anchor,
+    pointC: Anchor,
     style?: Partial<DrawingStyle>,
     options?: Partial<FibChannelOptions>
   ): FibChannel {
-    return new FibChannel(id, [start, end, width], style, options);
+    return new FibChannel(id, [pointA, pointB, pointC], style, options);
   }
+}
+
+function distToSegment(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  const s = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+  return Math.hypot(p.x - (a.x + s * dx), p.y - (a.y + s * dy));
 }

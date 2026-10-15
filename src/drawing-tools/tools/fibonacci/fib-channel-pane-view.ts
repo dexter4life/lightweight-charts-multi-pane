@@ -1,10 +1,11 @@
 import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
-import { extendLineToViewport } from '../../core/geometry';
-import { applyStyle, drawControlPoints, drawLine, drawText } from '../../rendering/canvas-utils';
-import { FIB_CHANNEL_LEVELS } from './constants';
+import { applyStyle, drawControlPoints, drawLine } from '../../rendering/canvas-utils';
 import type { FibChannel } from './fib-channel';
+
+const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+const HANDLE_COLOR = '#2962FF';
 
 export class FibChannelPaneView implements IPrimitivePaneView {
   private _renderer: FibChannelPaneRenderer;
@@ -23,96 +24,73 @@ export class FibChannelPaneView implements IPrimitivePaneView {
 }
 
 class FibChannelPaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: FibChannel;
-
-  constructor(drawing: FibChannel) {
-    this._drawing = drawing;
-  }
+  constructor(private readonly _drawing: FibChannel) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const drawing = this._drawing;
+    const viewport = drawing.getViewport();
+    if (!viewport || !drawing.options.visible || !drawing.isDisplayed()) return;
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
+    const layout = drawing.channelLayout(viewport);
+    if (!layout) return;
 
-    const anchors = this._drawing.anchors;
-    const p1 = this._drawing.anchorToPixel(anchors[0], viewport);
-    const p2 = this._drawing.anchorToPixel(anchors[1], viewport);
-    const p3 = this._drawing.anchorToPixel(anchors[2], viewport);
+    const o = drawing.fibOptions;
+    const state = drawing.state;
+    ctx.save();
 
-    if (!p1 || !p2 || !p3) return;
+    if (layout.guide) {
+      applyStyle(ctx, { ...drawing.style, lineDash: [] }, pr);
+      drawLine(ctx, layout.guide[0], layout.guide[1], pr);
+    } else {
+      const segs = layout.segments;
+      // Each band takes the colour of the lower-valued level.
+      if (o.backgroundVisible) {
+        ctx.globalAlpha = o.backgroundOpacity ?? 0.2;
+        for (let i = 1; i < segs.length; i++) {
+          const a = segs[i - 1];
+          const b = segs[i];
+          ctx.fillStyle = a.level.color;
+          ctx.beginPath();
+          ctx.moveTo(a.a.x * pr, a.a.y * pr);
+          ctx.lineTo(a.b.x * pr, a.b.y * pr);
+          ctx.lineTo(b.b.x * pr, b.b.y * pr);
+          ctx.lineTo(b.a.x * pr, b.a.y * pr);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
 
-    const options = this._drawing.fibOptions;
-    const levels = options.levels ?? FIB_CHANNEL_LEVELS;
-    const offset = this._drawing.calculateOffset(p1, p2, p3);
-
-    applyStyle(ctx, this._drawing.style, pixelRatio);
-
-    // Draw fill between levels if enabled
-    if (options.filled && this._drawing.style.fillColor) {
-      ctx.fillStyle = this._drawing.style.fillColor;
-      for (let i = 0; i < levels.length - 1; i++) {
-        const level1 = levels[i];
-        const level2 = levels[i + 1];
-
-        const start1 = { x: p1.x + offset.x * level1, y: p1.y + offset.y * level1 };
-        const end1 = { x: p2.x + offset.x * level1, y: p2.y + offset.y * level1 };
-        const start2 = { x: p1.x + offset.x * level2, y: p1.y + offset.y * level2 };
-        const end2 = { x: p2.x + offset.x * level2, y: p2.y + offset.y * level2 };
-
+      ctx.lineWidth = Math.max(1, Math.round((o.levelsWidth ?? 1) * pr));
+      ctx.lineCap = 'butt';
+      ctx.setLineDash((o.levelsDash ?? []).map((d) => d * pr));
+      for (const s of segs) {
+        ctx.strokeStyle = s.level.color;
         ctx.beginPath();
-        ctx.moveTo(start1.x * pixelRatio, start1.y * pixelRatio);
-        ctx.lineTo(end1.x * pixelRatio, end1.y * pixelRatio);
-        ctx.lineTo(end2.x * pixelRatio, end2.y * pixelRatio);
-        ctx.lineTo(start2.x * pixelRatio, start2.y * pixelRatio);
-        ctx.closePath();
-        ctx.fill();
+        ctx.moveTo(s.a.x * pr, s.a.y * pr);
+        ctx.lineTo(s.b.x * pr, s.b.y * pr);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      ctx.font = `${(o.fontSize ?? 12) * pr}px ${FONT_FAMILY}`;
+      for (const label of drawing.labelItems(layout, viewport.width)) {
+        ctx.textAlign = label.align;
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = label.color;
+        ctx.fillText(label.text, label.x * pr, label.baseline * pr);
       }
     }
 
-    // Draw level lines
-    for (const level of levels) {
-      const offsetX = offset.x * level;
-      const offsetY = offset.y * level;
-
-      let start = { x: p1.x + offsetX, y: p1.y + offsetY };
-      let end = { x: p2.x + offsetX, y: p2.y + offsetY };
-
-      if (options.extendLines) {
-        const extended = extendLineToViewport(start, end, viewport.width, viewport.height, true, true);
-        start = extended.start;
-        end = extended.end;
-      }
-
-      // Vary line opacity based on level importance
-      const isMainLevel = level === 0 || level === 0.5 || level === 1 || level === 0.618;
-      ctx.globalAlpha = isMainLevel ? 1 : 0.6;
-      drawLine(ctx, start, end, pixelRatio);
-      ctx.globalAlpha = 1;
-
-      // Draw level label
-      if (options.showPercentages) {
-        const labelX = end.x + 5;
-        const labelY = end.y;
-        const text = `${(level * 100).toFixed(1)}%`;
-        drawText(ctx, text, { x: labelX, y: labelY }, '10px sans-serif', this._drawing.style.lineColor || '#fff', 'left', 'middle', pixelRatio);
-      }
+    if (state === 'selected' || state === 'editing' || state === 'hovered') {
+      ctx.setLineDash([]);
+      drawControlPoints(ctx, drawing.getControlPoints(viewport), null, pr, HANDLE_COLOR);
     }
-
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
-    }
+    ctx.restore();
   }
 }

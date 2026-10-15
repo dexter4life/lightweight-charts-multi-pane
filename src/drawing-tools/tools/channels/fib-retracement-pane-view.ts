@@ -2,11 +2,9 @@ import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'f
 import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
 import { applyStyle, drawControlPoints, drawLine } from '../../rendering/canvas-utils';
-import type { FibRetracement } from './fib-retracement';
+import type { FibLayout, FibRetracement } from './fib-retracement';
 
 const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
-const LABEL_EDGE = 7;
-const LABEL_GAP = 4;
 const HANDLE_COLOR = '#2962FF';
 
 export class FibRetracementPaneView implements IPrimitivePaneView {
@@ -78,7 +76,7 @@ class FibRetracementPaneRenderer implements IPrimitivePaneRenderer {
 
     if (o.trendLineVisible) {
       applyStyle(ctx, drawing.style, pr);
-      drawLine(ctx, layout.p1, layout.p2, pr);
+      for (let i = 1; i < layout.trend.length; i++) drawLine(ctx, layout.trend[i - 1], layout.trend[i], pr);
     }
 
     this.drawLabels(ctx, layout, pr, viewport.width);
@@ -90,41 +88,15 @@ class FibRetracementPaneRenderer implements IPrimitivePaneRenderer {
     ctx.restore();
   }
 
-  private drawLabels(ctx: CanvasRenderingContext2D, layout: ReturnType<FibRetracement['layout']> & object, pr: number, paneWidth: number): void {
+  private drawLabels(ctx: CanvasRenderingContext2D, layout: FibLayout, pr: number, paneWidth: number): void {
     const drawing = this._drawing;
-    const o = drawing.fibOptions;
-    if (!o.showLevels && !o.showPrices) return;
-
-    const size = o.fontSize ?? 12;
-    const hAlign = o.labelHAlign ?? 'left';
-    const vAlign = o.labelVAlign ?? 'top';
-    const { x1, x2 } = layout;
-
-    let x: number;
-    let align: CanvasTextAlign;
-    if (hAlign === 'left') {
-      [x, align] = drawing.options.extendLeft ? [LABEL_EDGE, 'left'] : [x1 - LABEL_EDGE, 'right'];
-    } else if (hAlign === 'right') {
-      [x, align] = drawing.options.extendRight ? [paneWidth - LABEL_EDGE, 'right'] : [x2 + LABEL_EDGE, 'left'];
-    } else {
-      [x, align] = [(x1 + x2) / 2, 'center'];
-    }
-
+    const size = drawing.fibOptions.fontSize ?? 12;
     ctx.font = `${size * pr}px ${FONT_FAMILY}`;
-    ctx.textAlign = align;
-    ctx.textBaseline = 'alphabetic';
-
-    for (const l of layout.lines) {
-      const parts: string[] = [];
-      if (o.showLevels) {
-        parts.push(o.levelsMode === 'percents' ? `${(l.level.value * 100).toFixed(2)}%` : `${l.level.value}`);
-      }
-      if (o.showPrices) parts.push(`(${drawing.formatPrice(l.price)})`);
-
-      const baseline =
-        vAlign === 'top' ? l.y - LABEL_GAP : vAlign === 'bottom' ? l.y + LABEL_GAP + size * 0.72 : l.y + size * 0.36;
-      ctx.fillStyle = l.level.color;
-      ctx.fillText(parts.join(''), x * pr, baseline * pr);
+    for (const label of drawing.labelItems(layout, paneWidth)) {
+      ctx.textAlign = label.align;
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = label.color;
+      ctx.fillText(label.text, label.x * pr, label.baseline * pr);
     }
   }
 }

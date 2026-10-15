@@ -7,7 +7,14 @@ export { FibChannel, type FibChannelOptions, FIB_CHANNEL_LEVELS } from './fib-ch
 export { FibChannelPaneView } from './fib-channel-pane-view';
 
 // FibTimeZone
-export { FibTimeZone, type FibTimeZoneOptions, FIB_TIME_INTERVALS } from './fib-time-zone';
+export {
+  FibTimeZone,
+  type FibTimeZoneOptions,
+  type FibTimeZoneLevel,
+  defaultFibTimeZoneLevels,
+  DEFAULT_FIB_TIME_ZONE_OPTIONS,
+  FIB_TIME_INTERVALS,
+} from './fib-time-zone';
 export { FibTimeZonePaneView } from './fib-time-zone-pane-view';
 
 // FibSpeedFan

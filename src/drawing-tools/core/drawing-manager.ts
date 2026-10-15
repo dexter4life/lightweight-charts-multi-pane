@@ -93,6 +93,9 @@ export class DrawingManager {
     container.addEventListener('mousedown', this.handleMouseDown, { capture: true });
     container.addEventListener('mousemove', this.handleMouseMove, { capture: true });
     container.addEventListener('mouseup', this.handleMouseUp, { capture: true });
+    // A mouseup can land outside the container (e.g. on a floating toolbar that
+    // appeared under the cursor on selection); end any drag that is still active.
+    window.addEventListener('mouseup', this.handleMouseUp);
   }
 
   /**
@@ -117,6 +120,7 @@ export class DrawingManager {
       this._container.removeEventListener('mousemove', this.handleMouseMove, { capture: true });
       this._container.removeEventListener('mouseup', this.handleMouseUp, { capture: true });
     }
+    window.removeEventListener('mouseup', this.handleMouseUp);
 
     this._chart = null;
     this._series = null;

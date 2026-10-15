@@ -100,9 +100,33 @@ export interface FibLevelLine {
   y: number;
 }
 
+export interface FibLabelItem {
+  text: string;
+  x: number;
+  align: 'left' | 'right' | 'center';
+  baseline: number;
+  color: string;
+  /** Text box in pane coordinates, used for hit testing. */
+  box: { left: number; right: number; top: number; bottom: number };
+}
+
+const LABEL_EDGE = 7;
+const LABEL_GAP = 4;
+const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+let measureCtx: CanvasRenderingContext2D | null = null;
+
+export function measureText(text: string, size: number): number {
+  if (!measureCtx && typeof document !== 'undefined') measureCtx = document.createElement('canvas').getContext('2d');
+  if (!measureCtx) return text.length * size * 0.6;
+  measureCtx.font = `${size}px ${FONT_FAMILY}`;
+  return measureCtx.measureText(text).width;
+}
+
 export interface FibLayout {
   p1: Point;
   p2: Point;
+  /** Polyline drawn as the trend line (A→B, or A→B→C for extensions). */
+  trend: Point[];
   x1: number;
   x2: number;
   lines: FibLevelLine[];
@@ -114,12 +138,12 @@ export interface FibLayout {
  * horizontally, optionally extended to the pane edges.
  */
 export class FibRetracement extends Drawing {
-  readonly type = 'fib-retracement';
+  readonly type: string = 'fib-retracement';
 
   protected static readonly REQUIRED_ANCHORS = 2;
-  protected static readonly HIT_THRESHOLD = 5;
+  protected static readonly HIT_THRESHOLD = 3;
 
-  private _fibOptions: FibRetracementOptions;
+  protected _fibOptions: FibRetracementOptions;
   private _interval: { unit: IntervalUnit; multiplier: number } | null = null;
 
   constructor(
@@ -230,6 +254,7 @@ export class FibRetracement extends Drawing {
     return {
       p1,
       p2,
+      trend: [p1, p2],
       x1: this._options.extendLeft ? 0 : Math.min(p1.x, p2.x),
       x2: this._options.extendRight ? viewport.width : Math.max(p1.x, p2.x),
       lines,
@@ -238,6 +263,48 @@ export class FibRetracement extends Drawing {
 
   formatPrice(price: number): string {
     return this._series ? this._series.priceFormatter().format(price) : price.toFixed(2);
+  }
+
+  /** Level labels with their positions; shared by rendering and hit testing. */
+  labelItems(layout: FibLayout, paneWidth: number): FibLabelItem[] {
+    const o = this._fibOptions;
+    if (!o.showLevels && !o.showPrices) return [];
+
+    const size = o.fontSize ?? 12;
+    const hAlign = o.labelHAlign ?? 'left';
+    const vAlign = o.labelVAlign ?? 'top';
+    const { x1, x2 } = layout;
+
+    let x: number;
+    let align: FibLabelItem['align'];
+    if (hAlign === 'left') {
+      [x, align] = this._options.extendLeft ? [LABEL_EDGE, 'left'] : [x1 - LABEL_EDGE, 'right'];
+    } else if (hAlign === 'right') {
+      [x, align] = this._options.extendRight ? [paneWidth - LABEL_EDGE, 'right'] : [x2 + LABEL_EDGE, 'left'];
+    } else {
+      [x, align] = [(x1 + x2) / 2, 'center'];
+    }
+
+    return layout.lines.map((l) => {
+      const parts: string[] = [];
+      if (o.showLevels) {
+        parts.push(o.levelsMode === 'percents' ? `${(l.level.value * 100).toFixed(2)}%` : `${l.level.value}`);
+      }
+      if (o.showPrices) parts.push(`(${this.formatPrice(l.price)})`);
+      const text = parts.join('');
+      const baseline =
+        vAlign === 'top' ? l.y - LABEL_GAP : vAlign === 'bottom' ? l.y + LABEL_GAP + size * 0.72 : l.y + size * 0.36;
+      const width = measureText(text, size);
+      const left = align === 'left' ? x : align === 'right' ? x - width : x - width / 2;
+      return {
+        text,
+        x,
+        align,
+        baseline,
+        color: l.level.color,
+        box: { left: left - 6, right: left + width + 5, top: baseline - size - 3, bottom: baseline + 4.5 },
+      };
+    });
   }
 
   // ============ Geometry / hit testing ============
@@ -260,19 +327,25 @@ export class FibRetracement extends Drawing {
     if (!layout) return false;
     const t = FibRetracement.HIT_THRESHOLD;
 
-    if (point.x >= layout.x1 - t && point.x <= layout.x2 + t) {
+    if (point.x >= layout.x1 - 5 && point.x <= layout.x2 + 5) {
       for (const l of layout.lines) {
         if (Math.abs(point.y - l.y) <= t) return true;
       }
     }
+    for (const { box } of this.labelItems(layout, viewport.width)) {
+      if (point.x >= box.left && point.x <= box.right && point.y >= box.top && point.y <= box.bottom) return true;
+    }
 
     if (this._fibOptions.trendLineVisible) {
-      const { p1, p2 } = layout;
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const len2 = dx * dx + dy * dy;
-      const s = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((point.x - p1.x) * dx + (point.y - p1.y) * dy) / len2));
-      if (Math.hypot(point.x - (p1.x + s * dx), point.y - (p1.y + s * dy)) <= t) return true;
+      for (let i = 1; i < layout.trend.length; i++) {
+        const p1 = layout.trend[i - 1];
+        const p2 = layout.trend[i];
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const len2 = dx * dx + dy * dy;
+        const s = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((point.x - p1.x) * dx + (point.y - p1.y) * dy) / len2));
+        if (Math.hypot(point.x - (p1.x + s * dx), point.y - (p1.y + s * dy)) <= t) return true;
+      }
     }
     return false;
   }
