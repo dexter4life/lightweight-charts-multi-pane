@@ -139,7 +139,6 @@ export {
   ShapePaneView,
   type ShapeOptions,
   Triangle,
-  TrianglePaneView,
   type TriangleOptions,
   PriceRange,
   PriceRangePaneView,

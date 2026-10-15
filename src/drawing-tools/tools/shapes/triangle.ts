@@ -1,32 +1,17 @@
-import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
-
-import { Drawing } from '../../core/drawing';
-import type { Anchor, Point, Viewport, DrawingStyle, DrawingOptions, IDrawing } from '../../core/types';
-import type { Geometry, PolygonGeometry } from '../../core/geometry';
 import { distanceToLineSegment } from '../../core/geometry';
-import { TrianglePaneView } from './triangle-pane-view';
+import type { Geometry, PolygonGeometry } from '../../core/geometry';
+import type { Anchor, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
+import { ShapeBase, type ShapeOptions } from './shape-base';
+
+export type TriangleOptions = ShapeOptions;
+
+const HIT_THRESHOLD = 4;
 
 /**
- * Triangle options
+ * Triangle - three vertices. Only the border is hittable; the interior is not.
  */
-export interface TriangleOptions extends DrawingOptions {
-  filled?: boolean;
-}
-
-/**
- * Triangle - A triangular shape defined by three points.
- *
- * Features:
- * - Three anchor points (vertices)
- * - Optional fill
- */
-export class Triangle extends Drawing {
+export class Triangle extends ShapeBase {
   readonly type = 'triangle';
-
-  protected static readonly REQUIRED_ANCHORS = 3;
-  protected static readonly HIT_THRESHOLD = 5;
-
-  private _triangleOptions: TriangleOptions;
 
   constructor(
     id: string,
@@ -34,106 +19,67 @@ export class Triangle extends Drawing {
     style: Partial<DrawingStyle> = {},
     options: Partial<TriangleOptions> = {}
   ) {
-    const { filled, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
-
-    this._triangleOptions = {
-      ...this._options,
-      filled: filled ?? true,
-    };
+    super(id, anchors, style, options, { lineColor: '#459782', lineWidth: 1, lineDash: [], fillColor: 'rgba(69, 151, 130, 0.2)' });
   }
 
+  /** Kept for callers of the previous API. */
   get triangleOptions(): TriangleOptions {
-    return this._triangleOptions;
+    return this._shapeOptions;
   }
 
   setTriangleOptions(options: Partial<TriangleOptions>): void {
-    this._triangleOptions = { ...this._triangleOptions, ...options };
-    this.requestUpdate();
+    this.setShapeOptions(options);
   }
 
   isValid(): boolean {
-    return this._anchors.length >= Triangle.REQUIRED_ANCHORS;
+    return this._anchors.length >= 2;
   }
 
-  paneViews(): IPrimitivePaneView[] {
-    return [new TrianglePaneView(this)];
+  private vertices(viewport: Viewport): Point[] {
+    const pts: Point[] = [];
+    for (const a of this._anchors.slice(0, 3)) {
+      const p = this.anchorToPixel(a, viewport);
+      if (p) pts.push(p);
+    }
+    return pts;
+  }
+
+  tracePath(ctx: CanvasRenderingContext2D, pr: number, viewport: Viewport): boolean {
+    const v = this.vertices(viewport);
+    if (v.length < 2) return false;
+    ctx.moveTo(v[0].x * pr, v[0].y * pr);
+    for (let i = 1; i < v.length; i++) ctx.lineTo(v[i].x * pr, v[i].y * pr);
+    if (v.length >= 3) ctx.closePath();
+    return true;
+  }
+
+  textCenter(): Point | null {
+    return null;
   }
 
   computeGeometry(viewport: Viewport): Geometry[] {
-    if (!this.isValid()) return [];
-
-    const points: Point[] = [];
-    for (const anchor of this._anchors) {
-      const p = this.anchorToPixel(anchor, viewport);
-      if (!p) return [];
-      points.push(p);
-    }
-
-    const polygonGeometry: PolygonGeometry = {
-      type: 'polygon',
-      points,
-      closed: true,
-    };
-
-    return [polygonGeometry];
+    const v = this.vertices(viewport);
+    if (v.length < 2) return [];
+    const polygon: PolygonGeometry = { type: 'polygon', points: v, closed: v.length >= 3 };
+    return [polygon];
   }
 
   testHit(point: Point, viewport: Viewport): boolean {
-    if (!this.isValid()) return false;
-
-    const points: Point[] = [];
-    for (const anchor of this._anchors) {
-      const p = this.anchorToPixel(anchor, viewport);
-      if (!p) return false;
-      points.push(p);
+    if (!this.isDisplayed()) return false;
+    const v = this.vertices(viewport);
+    if (v.length < 2) return false;
+    const n = v.length >= 3 ? v.length : 1;
+    for (let i = 0; i < n; i++) {
+      if (distanceToLineSegment(point, v[i], v[(i + 1) % v.length]) <= HIT_THRESHOLD) return true;
     }
-
-    if (this._triangleOptions.filled) {
-      return this.isPointInTriangle(point, points[0], points[1], points[2]);
-    }
-
-    // Check if near any edge
-    for (let i = 0; i < 3; i++) {
-      const next = (i + 1) % 3;
-      const dist = distanceToLineSegment(point, points[i], points[next]);
-      if (dist <= Triangle.HIT_THRESHOLD) return true;
-    }
-
     return false;
   }
 
-  private isPointInTriangle(p: Point, a: Point, b: Point, c: Point): boolean {
-    const sign = (p1: Point, p2: Point, p3: Point) =>
-      (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
-
-    const d1 = sign(p, a, b);
-    const d2 = sign(p, b, c);
-    const d3 = sign(p, c, a);
-
-    const hasNeg = d1 < 0 || d2 < 0 || d3 < 0;
-    const hasPos = d1 > 0 || d2 > 0 || d3 > 0;
-
-    return !(hasNeg && hasPos);
-  }
-
   clone(newId: string): IDrawing {
-    return new Triangle(
-      newId,
-      [...this._anchors],
-      { ...this._style },
-      { ...this._triangleOptions }
-    );
+    return new Triangle(newId, [...this._anchors], { ...this._style }, { ...this._options, ...this._shapeOptions });
   }
 
-  static create(
-    id: string,
-    p1: Anchor,
-    p2: Anchor,
-    p3: Anchor,
-    style?: Partial<DrawingStyle>,
-    options?: Partial<TriangleOptions>
-  ): Triangle {
-    return new Triangle(id, [p1, p2, p3], style, options);
+  static create(id: string, anchors: Anchor[], style?: Partial<DrawingStyle>, options?: Partial<TriangleOptions>): Triangle {
+    return new Triangle(id, anchors, style, options);
   }
 }
