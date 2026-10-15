@@ -57,6 +57,8 @@ export interface FibTimeZoneLine {
 export interface FibTimeZoneLayout {
   a: Point;
   b: Point;
+  /** The dashed trend path: A→B, plus B→C for the trend-based variant. */
+  trend: Point[];
   /** Vertical level lines ordered by value; lines outside the pane are dropped. */
   lines: FibTimeZoneLine[];
   /** Every enabled level, including the ones scrolled out of view, for the background bands. */
@@ -80,9 +82,9 @@ function distanceToSegment(p: Point, a: Point, b: Point): number {
 export class FibTimeZone extends Drawing {
   readonly type: string = 'fib-time-zone';
 
-  protected static readonly REQUIRED_ANCHORS = 2;
+  protected static readonly REQUIRED_ANCHORS: number = 2;
 
-  private _fibOptions: FibTimeZoneOptions;
+  protected _fibOptions: FibTimeZoneOptions;
   private _interval: { unit: IntervalUnit; multiplier: number } | null = null;
 
   constructor(
@@ -146,7 +148,7 @@ export class FibTimeZone extends Drawing {
   }
 
   isValid(): boolean {
-    return this._anchors.length >= FibTimeZone.REQUIRED_ANCHORS;
+    return this._anchors.length >= (this.constructor as typeof FibTimeZone).REQUIRED_ANCHORS;
   }
 
   paneViews(): IPrimitivePaneView[] {
@@ -177,7 +179,7 @@ export class FibTimeZone extends Drawing {
     }
     all.sort((p, q) => p.level.value - q.level.value);
     const lines = all.filter((l) => l.x >= -1 && l.x <= viewport.width + 1);
-    return { a, b, lines, all };
+    return { a, b, trend: [a, b], lines, all };
   }
 
   computeGeometry(viewport: Viewport): Geometry[] {
@@ -192,8 +194,10 @@ export class FibTimeZone extends Drawing {
     if (!this.isDisplayed()) return false;
     const layout = this.layout(viewport);
     if (!layout) return false;
-    if (this._fibOptions.trendLineVisible !== false && distanceToSegment(point, layout.a, layout.b) <= HIT_THRESHOLD) {
-      return true;
+    if (this._fibOptions.trendLineVisible !== false) {
+      for (let i = 1; i < layout.trend.length; i++) {
+        if (distanceToSegment(point, layout.trend[i - 1], layout.trend[i]) <= HIT_THRESHOLD) return true;
+      }
     }
     return layout.lines.some((l) => Math.abs(point.x - l.x) <= HIT_THRESHOLD);
   }

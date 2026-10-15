@@ -1,16 +1,24 @@
 import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
-import { extendLineToViewport } from '../../core/geometry';
-import { applyStyle, drawControlPoints, drawLine, drawText } from '../../rendering/canvas-utils';
-import { FIB_SPEED_RATIOS } from './constants';
+import { drawControlPoints } from '../../rendering/canvas-utils';
 import type { FibSpeedFan } from './fib-speed-fan';
+
+const HANDLE_COLOR = '#2962FF';
+const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+const FONT_SIZE = 12;
+const LABEL_GAP = 10;
+
+const fmt = (v: number) => String(+v.toFixed(3));
 
 export class FibSpeedFanPaneView implements IPrimitivePaneView {
   private _renderer: FibSpeedFanPaneRenderer;
 
-  constructor(drawing: FibSpeedFan) {
-    this._renderer = new FibSpeedFanPaneRenderer(drawing);
+  constructor(
+    drawing: FibSpeedFan,
+    layer: 'body' | 'handles' = 'body'
+  ) {
+    this._renderer = new FibSpeedFanPaneRenderer(drawing, layer);
   }
 
   zOrder(): 'bottom' | 'normal' | 'top' {
@@ -23,90 +31,118 @@ export class FibSpeedFanPaneView implements IPrimitivePaneView {
 }
 
 class FibSpeedFanPaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: FibSpeedFan;
-
-  constructor(drawing: FibSpeedFan) {
-    this._drawing = drawing;
-  }
+  constructor(
+    private readonly _drawing: FibSpeedFan,
+    private readonly _layer: 'body' | 'handles'
+  ) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const drawing = this._drawing;
+    const viewport = drawing.getViewport();
+    if (!viewport || !drawing.options.visible || !drawing.isDisplayed()) return;
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
+    if (this._layer === 'handles') {
+      const st = drawing.state;
+      if (st === 'selected' || st === 'editing' || st === 'hovered') {
+        ctx.save();
+        drawControlPoints(ctx, drawing.getControlPoints(viewport), null, pr, HANDLE_COLOR);
+        ctx.restore();
+      }
+      return;
+    }
 
-    const anchors = this._drawing.anchors;
-    const p1 = this._drawing.anchorToPixel(anchors[0], viewport);
-    const p2 = this._drawing.anchorToPixel(anchors[1], viewport);
+    const box = drawing.box(viewport);
+    if (!box) return;
+    const o = drawing.fibOptions;
+    const style = drawing.style;
+    const rays = drawing.rays(box);
+    const { a } = box;
+    const reach = (viewport.width + viewport.height) * 4;
+    const tip = (ray: { dx: number; dy: number }) => {
+      const len = Math.hypot(ray.dx, ray.dy) || 1;
+      return { x: a.x + (ray.dx / len) * reach, y: a.y + (ray.dy / len) * reach };
+    };
 
-    if (!p1 || !p2) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, viewport.width * pr, viewport.height * pr);
+    ctx.clip();
 
-    const options = this._drawing.fibOptions;
-    const ratios = options.ratios ?? FIB_SPEED_RATIOS;
+    const grid = o.grid;
+    if (grid?.visible) {
+      ctx.strokeStyle = grid.color;
+      ctx.lineWidth = Math.max(1, Math.round(grid.width * pr));
+      ctx.setLineDash((grid.dash ?? []).map((d) => d * pr));
+      const hair = (v: number) => Math.round(v * pr) + 0.5 * (ctx.lineWidth % 2);
+      ctx.beginPath();
+      for (const l of o.hlevels ?? []) {
+        if (!l.enabled) continue;
+        const y = hair(drawing.levelY(box, l.value));
+        ctx.moveTo(Math.round(box.left * pr), y);
+        ctx.lineTo(Math.round(box.right * pr), y);
+      }
+      for (const l of o.vlevels ?? []) {
+        if (!l.enabled) continue;
+        const x = hair(drawing.levelX(box, l.value));
+        ctx.moveTo(x, Math.round(box.top * pr));
+        ctx.lineTo(x, Math.round(box.bottom * pr));
+      }
+      ctx.stroke();
+    }
 
-    applyStyle(ctx, this._drawing.style, pixelRatio);
-
-    // Draw fill between fan lines if enabled
-    if (options.filled && this._drawing.style.fillColor) {
-      ctx.fillStyle = this._drawing.style.fillColor;
-      const sortedRatios = [...ratios].sort((a, b) => a - b);
-
-      for (let i = 0; i < sortedRatios.length - 1; i++) {
-        const end1 = this._drawing.getFanLineEnd(p1, p2, sortedRatios[i], viewport.width);
-        const end2 = this._drawing.getFanLineEnd(p1, p2, sortedRatios[i + 1], viewport.width);
-
+    if (o.fillBackground !== false) {
+      ctx.globalAlpha = o.backgroundOpacity ?? 0.2;
+      for (const { from, to, color } of drawing.fills(rays)) {
+        const p = tip(from);
+        const q = tip(to);
+        ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.moveTo(p1.x * pixelRatio, p1.y * pixelRatio);
-        ctx.lineTo(end1.x * pixelRatio, end1.y * pixelRatio);
-        ctx.lineTo(end2.x * pixelRatio, end2.y * pixelRatio);
+        ctx.moveTo(a.x * pr, a.y * pr);
+        ctx.lineTo(p.x * pr, p.y * pr);
+        ctx.lineTo(q.x * pr, q.y * pr);
         ctx.closePath();
         ctx.fill();
       }
-    }
-
-    // Draw fan lines
-    for (const ratio of ratios) {
-      let end = this._drawing.getFanLineEnd(p1, p2, ratio, viewport.width);
-
-      if (options.extendLines) {
-        const extended = extendLineToViewport(p1, end, viewport.width, viewport.height, false, true);
-        end = extended.end;
-      }
-
-      // Main ratios get solid lines
-      const isMainRatio = ratio === 0.382 || ratio === 0.5 || ratio === 0.618 || ratio === 1;
-      ctx.globalAlpha = isMainRatio ? 1 : 0.6;
-      drawLine(ctx, p1, end, pixelRatio);
       ctx.globalAlpha = 1;
-
-      // Draw label
-      if (options.showLabels) {
-        const labelPos = {
-          x: (p1.x + end.x) / 2,
-          y: (p1.y + end.y) / 2,
-        };
-        const text = ratio === 1 ? '1:1' : `${ratio}`;
-        drawText(ctx, text, labelPos, '10px sans-serif', this._drawing.style.lineColor || '#fff', 'left', 'middle', pixelRatio);
-      }
     }
 
-    // Draw main trend line
-    drawLine(ctx, p1, p2, pixelRatio);
-
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
+    ctx.lineCap = 'butt';
+    ctx.lineWidth = Math.max(1, Math.round((style.lineWidth || 1) * pr));
+    ctx.setLineDash((style.lineDash ?? []).map((d) => d * pr));
+    for (const ray of rays) {
+      const end = tip(ray);
+      ctx.strokeStyle = ray.level.color;
+      ctx.beginPath();
+      ctx.moveTo(a.x * pr, a.y * pr);
+      ctx.lineTo(end.x * pr, end.y * pr);
+      ctx.stroke();
     }
+    ctx.setLineDash([]);
+
+    ctx.font = `${FONT_SIZE * pr}px ${FONT_FAMILY}`;
+    ctx.textBaseline = 'middle';
+    const text = (s: string, x: number, y: number, align: CanvasTextAlign, color: string) => {
+      ctx.textAlign = align;
+      ctx.fillStyle = color;
+      ctx.fillText(s, x * pr, y * pr);
+    };
+    for (const l of o.hlevels ?? []) {
+      if (!l.enabled) continue;
+      const y = drawing.levelY(box, l.value);
+      if (o.showLeftLabels !== false) text(fmt(l.value), box.left - LABEL_GAP, y, 'right', l.color);
+      if (o.showRightLabels !== false) text(fmt(l.value), box.right + LABEL_GAP, y, 'left', l.color);
+    }
+    for (const l of o.vlevels ?? []) {
+      if (!l.enabled) continue;
+      const x = drawing.levelX(box, l.value);
+      if (o.showTopLabels !== false) text(fmt(l.value), x, box.top - LABEL_GAP - 5, 'center', l.color);
+      if (o.showBottomLabels !== false) text(fmt(l.value), x, box.bottom + LABEL_GAP + 5, 'center', l.color);
+    }
+    ctx.restore();
   }
 }

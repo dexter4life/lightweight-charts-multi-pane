@@ -18,15 +18,37 @@ export {
 export { FibTimeZonePaneView } from './fib-time-zone-pane-view';
 
 // FibSpeedFan
-export { FibSpeedFan, type FibSpeedFanOptions, FIB_SPEED_RATIOS } from './fib-speed-fan';
+export {
+  FibSpeedFan,
+  type FibSpeedFanOptions,
+  type FibFanLevel,
+  type FibFanGrid,
+  defaultFibFanLevels,
+  DEFAULT_FIB_FAN_OPTIONS,
+  FIB_SPEED_RATIOS,
+} from './fib-speed-fan';
 export { FibSpeedFanPaneView } from './fib-speed-fan-pane-view';
 
 // FibTimeExtension
-export { FibTimeExtension, type FibTimeExtensionOptions, FIB_TIME_EXTENSION_LEVELS } from './fib-time-extension';
-export { FibTimeExtensionPaneView } from './fib-time-extension-pane-view';
+export {
+  FibTimeExtension,
+  type FibTimeExtensionOptions,
+  type FibTimeExtensionLevel,
+  FIB_TIME_EXTENSION_LEVELS,
+  DEFAULT_FIB_TIME_EXTENSION_OPTIONS,
+  defaultFibTimeExtensionLevels,
+} from './fib-time-extension';
+export { FibTimeExtensionPaneView } from './fib-time-extension';
 
 // FibCircles
-export { FibCircles, type FibCirclesOptions, FIB_CIRCLE_LEVELS } from './fib-circles';
+export {
+  FibCircles,
+  type FibCirclesOptions,
+  type FibCircleLevel,
+  FIB_CIRCLE_LEVELS,
+  DEFAULT_FIB_CIRCLES_OPTIONS,
+  defaultFibCircleLevels,
+} from './fib-circles';
 export { FibCirclesPaneView } from './fib-circles-pane-view';
 
 // FibSpiral

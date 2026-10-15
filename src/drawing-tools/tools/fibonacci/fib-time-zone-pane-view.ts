@@ -88,7 +88,7 @@ class FibTimeZonePaneRenderer implements IPrimitivePaneRenderer {
 
     if (o.trendLineVisible !== false) {
       applyStyle(ctx, drawing.style, pr);
-      drawLine(ctx, layout.a, layout.b, pr);
+      for (let i = 1; i < layout.trend.length; i++) drawLine(ctx, layout.trend[i - 1], layout.trend[i], pr);
     }
 
     if (o.showLabels !== false) {

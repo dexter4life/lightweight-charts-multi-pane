@@ -1,39 +1,56 @@
+import type { Anchor, DrawingStyle, IDrawing, Viewport } from '../../core/types';
+import {
+  FibTimeZone,
+  type FibTimeZoneLayout,
+  type FibTimeZoneLevel,
+  type FibTimeZoneOptions,
+  DEFAULT_FIB_TIME_ZONE_OPTIONS,
+} from './fib-time-zone';
+import { FibTimeZonePaneView } from './fib-time-zone-pane-view';
 import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
-
-import { Drawing } from '../../core/drawing';
-import type { Geometry, LineGeometry } from '../../core/geometry';
-import type { Anchor, DrawingOptions, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
-import { FIB_TIME_EXTENSION_LEVELS } from './constants';
-import { FibTimeExtensionPaneView } from './fib-time-extension-pane-view';
 
 /** Fibonacci time extension levels (re-exported for public API compatibility). */
 export { FIB_TIME_EXTENSION_LEVELS } from './constants';
 
-/**
- * FibTimeExtension options
- */
-export interface FibTimeExtensionOptions extends DrawingOptions {
-  levels?: number[];
-  showLabels?: boolean;
-  filled?: boolean;
-}
+export type FibTimeExtensionLevel = FibTimeZoneLevel;
+export type FibTimeExtensionOptions = FibTimeZoneOptions;
+
+const TREND_TIME_LEVELS: Array<[number, string]> = [
+  [0, '#787B86'],
+  [0.382, '#F23645'],
+  [0.5, '#81c784'],
+  [0.618, '#4caf50'],
+  [1, '#089981'],
+  [1.382, '#00bcd4'],
+  [1.618, '#787B86'],
+  [2, '#2962FF'],
+  [2.382, '#e91e63'],
+  [2.618, '#9c27b0'],
+  [3, '#673ab7'],
+];
+
+export const defaultFibTimeExtensionLevels = (): FibTimeExtensionLevel[] =>
+  TREND_TIME_LEVELS.map(([value, color]) => ({
+    value,
+    enabled: value !== 0.5,
+    color,
+    width: 1,
+    dash: [],
+  }));
+
+export const DEFAULT_FIB_TIME_EXTENSION_OPTIONS = {
+  ...DEFAULT_FIB_TIME_ZONE_OPTIONS,
+  backgroundVisible: true,
+};
 
 /**
- * FibTimeExtension - Trend-Based Fibonacci Time extension.
- *
- * Features:
- * - Three anchor points (start, end of trend, extension point)
- * - Vertical lines at Fibonacci time projections
- * - Optional labels showing level
- * - Optional fill between zones
+ * Trend-Based Fib Time: the A→B distance is the unit and the third point is level 0, so every
+ * enabled level draws a full-height vertical line at `C + value × (B − A)`.
  */
-export class FibTimeExtension extends Drawing {
-  readonly type = 'fib-time-extension';
+export class FibTimeExtension extends FibTimeZone {
+  override readonly type: string = 'fib-time-extension';
 
-  protected static readonly REQUIRED_ANCHORS = 3;
-  protected static readonly HIT_THRESHOLD = 5;
-
-  private _fibOptions: FibTimeExtensionOptions;
+  protected static override readonly REQUIRED_ANCHORS: number = 3;
 
   constructor(
     id: string,
@@ -41,102 +58,42 @@ export class FibTimeExtension extends Drawing {
     style: Partial<DrawingStyle> = {},
     options: Partial<FibTimeExtensionOptions> = {}
   ) {
-    const { levels, showLabels, filled, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
-
-    this._fibOptions = {
-      ...this._options,
-      levels: levels ?? FIB_TIME_EXTENSION_LEVELS,
-      showLabels: showLabels ?? true,
-      filled: filled ?? true,
-    };
-  }
-
-  get fibOptions(): FibTimeExtensionOptions {
-    return this._fibOptions;
-  }
-
-  setFibOptions(options: Partial<FibTimeExtensionOptions>): void {
-    this._fibOptions = { ...this._fibOptions, ...options };
-    this.requestUpdate();
-  }
-
-  isValid(): boolean {
-    return this._anchors.length >= FibTimeExtension.REQUIRED_ANCHORS;
-  }
-
-  paneViews(): IPrimitivePaneView[] {
-    return [new FibTimeExtensionPaneView(this)];
-  }
-
-  computeGeometry(viewport: Viewport): Geometry[] {
-    if (!this.isValid()) return [];
-
-    const p1 = this.anchorToPixel(this._anchors[0], viewport);
-    const p2 = this.anchorToPixel(this._anchors[1], viewport);
-    const p3 = this.anchorToPixel(this._anchors[2], viewport);
-
-    if (!p1 || !p2 || !p3) return [];
-
-    const geometries: Geometry[] = [];
-    const levels = this._fibOptions.levels ?? FIB_TIME_EXTENSION_LEVELS;
-
-    // Base time distance (from p1 to p2)
-    const baseTimeWidth = p2.x - p1.x;
-
-    for (const level of levels) {
-      // Project from p3 using the base time width
-      const x = p3.x + baseTimeWidth * level;
-
-      geometries.push({
-        type: 'line',
-        start: { x, y: 0 },
-        end: { x, y: viewport.height },
-      } as LineGeometry);
-    }
-
-    return geometries;
-  }
-
-  testHit(point: Point, viewport: Viewport): boolean {
-    if (!this.isValid()) return false;
-
-    const p1 = this.anchorToPixel(this._anchors[0], viewport);
-    const p2 = this.anchorToPixel(this._anchors[1], viewport);
-    const p3 = this.anchorToPixel(this._anchors[2], viewport);
-
-    if (!p1 || !p2 || !p3) return false;
-
-    const levels = this._fibOptions.levels ?? FIB_TIME_EXTENSION_LEVELS;
-    const baseTimeWidth = p2.x - p1.x;
-
-    for (const level of levels) {
-      const x = p3.x + baseTimeWidth * level;
-      if (Math.abs(point.x - x) <= FibTimeExtension.HIT_THRESHOLD) {
-        return true;
+    super(
+      id,
+      anchors,
+      { lineColor: '#787B86', lineWidth: 1, lineDash: [6, 6], ...style },
+      {
+        ...DEFAULT_FIB_TIME_EXTENSION_OPTIONS,
+        ...options,
+        levels: (options.levels ?? defaultFibTimeExtensionLevels()).map((l) => ({ ...l })),
       }
-    }
-
-    return false;
-  }
-
-  clone(newId: string): IDrawing {
-    return new FibTimeExtension(
-      newId,
-      [...this._anchors],
-      { ...this._style },
-      { ...this._fibOptions }
     );
   }
 
-  static create(
-    id: string,
-    start: Anchor,
-    end: Anchor,
-    extension: Anchor,
-    style?: Partial<DrawingStyle>,
-    options?: Partial<FibTimeExtensionOptions>
-  ): FibTimeExtension {
-    return new FibTimeExtension(id, [start, end, extension], style, options);
+  override paneViews(): IPrimitivePaneView[] {
+    return [new FibTimeZonePaneView(this, 'body'), new FibTimeZonePaneView(this, 'handles')];
+  }
+
+  override layout(viewport: Viewport): FibTimeZoneLayout | null {
+    if (!this.isValid()) return null;
+    const a = this.anchorToPixel(this._anchors[0], viewport);
+    const b = this.anchorToPixel(this._anchors[1], viewport);
+    const c = this.anchorToPixel(this._anchors[2], viewport);
+    if (!a || !b || !c) return null;
+
+    const unit = b.x - a.x;
+    const all = (this._fibOptions.levels ?? [])
+      .filter((l) => l.enabled)
+      .map((level) => ({ level, x: c.x + level.value * unit }))
+      .sort((p, q) => p.level.value - q.level.value);
+    const lines = all.filter((l) => l.x >= -1 && l.x <= viewport.width + 1);
+    return { a, b, trend: [a, b, c], lines, all };
+  }
+
+  override clone(newId: string): IDrawing {
+    return new FibTimeExtension(newId, [...this._anchors], { ...this._style }, { ...this._options, ...this._fibOptions });
   }
 }
+
+export { FibTimeZonePaneView as FibTimeExtensionPaneView };
+
