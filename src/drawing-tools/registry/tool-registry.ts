@@ -530,7 +530,7 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
     type: 'price-note',
     name: 'Price Note',
     category: 'annotation',
-    requiredAnchors: 1,
+    requiredAnchors: 2,
     factory: (id, anchors, style, options) => new PriceNote(id, anchors, style, options),
   },
   {
