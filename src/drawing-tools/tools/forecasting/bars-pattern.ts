@@ -1,205 +1,301 @@
-import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
+import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
+import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
-import { Drawing } from '../../core/drawing';
-import type { Anchor, Point, Viewport, DrawingStyle, DrawingOptions, IDrawing } from '../../core/types';
-import type { Geometry, LineGeometry, RectangleGeometry } from '../../core/geometry';
-import { distanceToLineSegment } from '../../core/geometry';
-import { BarsPatternPaneView } from './bars-pattern-pane-view';
+import type { Anchor, DrawingOptions, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
+import { drawControlPoints } from '../../rendering/canvas-utils';
+import type { IntervalUnit, VisibilityMap } from '../lines/trend-line';
+import { PatternDrawing } from '../patterns/pattern-base';
+import { findNearestBarIndex, resolveSeriesBars } from './data-utils';
+import type { SeriesDatumLike } from './data-utils';
 
-/**
- * Bars Pattern options
- */
+export type BarsPatternMode = 'hl' | 'oc' | 'close' | 'open' | 'high' | 'low' | 'hl2';
+
+/** One copied candle: open, high, low, close. */
+export type BarsPatternBar = [number, number, number, number];
+
 export interface BarsPatternOptions extends DrawingOptions {
-  showLabels?: boolean;
-  filled?: boolean;
-  patternColor?: string;
+  visibility?: VisibilityMap;
+  mode: BarsPatternMode;
+  mirrored: boolean;
+  flipped: boolean;
+  /** The candles captured when the pattern was placed; it keeps its shape wherever it is moved. */
+  source?: BarsPatternBar[];
 }
 
-/**
- * BarsPattern - Pattern projection tool.
- *
- * Features:
- * - Three anchor points: pattern start (A), pattern end (B), projection start (C)
- * - Copies the price pattern from A-B and projects it from C
- * - Shows the projected pattern zone
- */
-export class BarsPattern extends Drawing {
+export const BARS_PATTERN_COLOR = '#2962FF';
+
+const DEFAULT_OPTIONS: BarsPatternOptions = {
+  mode: 'hl',
+  mirrored: false,
+  flipped: false,
+};
+
+/** How far above the picked candles the copy is first drawn, in css pixels. */
+const LIFT_PX = 38;
+const BAR_W = 3;
+const HIT = 5;
+
+export class BarsPattern extends PatternDrawing<BarsPatternOptions> {
   readonly type = 'bars-pattern';
+  protected _patternOptions: BarsPatternOptions;
 
-  protected static readonly REQUIRED_ANCHORS = 3;
-  protected static readonly HIT_THRESHOLD = 5;
+  private _interval: { unit: IntervalUnit; multiplier: number } | null = null;
 
-  private _barsPatternOptions: BarsPatternOptions;
-
-  constructor(
-    id: string,
-    anchors: Anchor[] = [],
-    style: Partial<DrawingStyle> = {},
-    options: Partial<BarsPatternOptions> = {}
-  ) {
-    const { showLabels, filled, patternColor, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
-
-    this._barsPatternOptions = {
-      ...this._options,
-      showLabels: showLabels ?? true,
-      filled: filled ?? true,
-      patternColor: patternColor ?? '#FF9800',
-    };
+  constructor(id: string, anchors: Anchor[] = [], style: Partial<DrawingStyle> = {}, options: Partial<BarsPatternOptions> = {}) {
+    super(id, anchors, { lineColor: BARS_PATTERN_COLOR, lineWidth: 2, ...style }, {
+      ...(options.visible !== undefined ? { visible: options.visible } : {}),
+      ...(options.locked !== undefined ? { locked: options.locked } : {}),
+    });
+    this._patternOptions = { ...DEFAULT_OPTIONS, ...options };
   }
 
   get barsPatternOptions(): BarsPatternOptions {
-    return this._barsPatternOptions;
+    return this._patternOptions;
   }
 
   setBarsPatternOptions(options: Partial<BarsPatternOptions>): void {
-    this._barsPatternOptions = { ...this._barsPatternOptions, ...options };
+    this.updatePatternOptions(options);
+    const { visible, locked } = options;
+    if (visible !== undefined) this._options = { ...this._options, visible };
+    if (locked !== undefined) this._options = { ...this._options, locked };
+  }
+
+  setInterval(unit: IntervalUnit, multiplier: number): void {
+    this._interval = { unit, multiplier };
     this.requestUpdate();
   }
 
-  /**
-   * Get pattern info.
-   * A = pattern start, B = pattern end, C = projection start.
-   * The pattern from A-B is projected starting at C.
-   */
-  getPatternInfo(): {
-    priceRange: number;
-    timeSpan: number;
-    projectedEndPrice: number;
-  } {
-    if (!this.isValid()) {
-      return { priceRange: 0, timeSpan: 0, projectedEndPrice: 0 };
-    }
-
-    const priceA = this._anchors[0].price;
-    const priceB = this._anchors[1].price;
-    const priceC = this._anchors[2].price;
-    const priceRange = Math.abs(priceB - priceA);
-    const projectedEndPrice = priceC + (priceB - priceA);
-
-    return { priceRange, timeSpan: 0, projectedEndPrice };
+  override isDisplayed(): boolean {
+    const map = this._patternOptions.visibility;
+    if (!map || !this._interval) return true;
+    const rule = map[this._interval.unit];
+    if (!rule) return true;
+    return rule.enabled && this._interval.multiplier >= rule.min && this._interval.multiplier <= rule.max;
   }
 
-  isValid(): boolean {
-    return this._anchors.length >= BarsPattern.REQUIRED_ANCHORS;
+  override toJSON() {
+    return { ...super.toJSON(), options: { ...this._patternOptions, visible: this._options.visible, locked: this._options.locked } };
   }
 
-  paneViews(): IPrimitivePaneView[] {
+  override isValid(): boolean {
+    return this._anchors.length >= 2;
+  }
+
+  override paneViews(): IPrimitivePaneView[] {
     return [new BarsPatternPaneView(this)];
   }
 
-  computeGeometry(viewport: Viewport): Geometry[] {
-    if (!this.isValid()) return [];
-
-    const pA = this.anchorToPixel(this._anchors[0], viewport);
-    const pB = this.anchorToPixel(this._anchors[1], viewport);
-    const pC = this.anchorToPixel(this._anchors[2], viewport);
-
-    if (!pA || !pB || !pC) return [];
-
-    const geometries: Geometry[] = [];
-
-    // Source pattern box A-B
-    const srcLeft = Math.min(pA.x, pB.x);
-    const srcTop = Math.min(pA.y, pB.y);
-    geometries.push({
-      type: 'rectangle',
-      topLeft: { x: srcLeft, y: srcTop },
-      width: Math.abs(pB.x - pA.x),
-      height: Math.abs(pB.y - pA.y),
-    } as RectangleGeometry);
-
-    // Source diagonal
-    geometries.push({
-      type: 'line',
-      start: pA,
-      end: pB,
-    } as LineGeometry);
-
-    // Projected pattern
-    const dx = pB.x - pA.x;
-    const dy = pB.y - pA.y;
-    const pD: Point = { x: pC.x + dx, y: pC.y + dy };
-
-    // Projected box C-D
-    const projLeft = Math.min(pC.x, pD.x);
-    const projTop = Math.min(pC.y, pD.y);
-    geometries.push({
-      type: 'rectangle',
-      topLeft: { x: projLeft, y: projTop },
-      width: Math.abs(pD.x - pC.x),
-      height: Math.abs(pD.y - pC.y),
-    } as RectangleGeometry);
-
-    // Projected diagonal
-    geometries.push({
-      type: 'line',
-      start: pC,
-      end: pD,
-    } as LineGeometry);
-
-    // Connecting lines
-    geometries.push({
-      type: 'line',
-      start: pB,
-      end: pC,
-    } as LineGeometry);
-
-    return geometries;
+  override computeGeometry(): never[] {
+    return [];
   }
 
-  testHit(point: Point, viewport: Viewport): boolean {
-    if (!this.isValid()) return false;
-
-    const pA = this.anchorToPixel(this._anchors[0], viewport);
-    const pB = this.anchorToPixel(this._anchors[1], viewport);
-    const pC = this.anchorToPixel(this._anchors[2], viewport);
-
-    if (!pA || !pB || !pC) return false;
-
-    const dx = pB.x - pA.x;
-    const dy = pB.y - pA.y;
-    const pD: Point = { x: pC.x + dx, y: pC.y + dy };
-
-    // Check lines
-    if (distanceToLineSegment(point, pA, pB) <= BarsPattern.HIT_THRESHOLD) return true;
-    if (distanceToLineSegment(point, pC, pD) <= BarsPattern.HIT_THRESHOLD) return true;
-    if (distanceToLineSegment(point, pB, pC) <= BarsPattern.HIT_THRESHOLD) return true;
-
-    // Check inside source box
-    const srcLeft = Math.min(pA.x, pB.x);
-    const srcRight = Math.max(pA.x, pB.x);
-    const srcTop = Math.min(pA.y, pB.y);
-    const srcBottom = Math.max(pA.y, pB.y);
-    if (point.x >= srcLeft && point.x <= srcRight && point.y >= srcTop && point.y <= srcBottom) return true;
-
-    // Check inside projected box
-    const projLeft = Math.min(pC.x, pD.x);
-    const projRight = Math.max(pC.x, pD.x);
-    const projTop = Math.min(pC.y, pD.y);
-    const projBottom = Math.max(pC.y, pD.y);
-    if (point.x >= projLeft && point.x <= projRight && point.y >= projTop && point.y <= projBottom) return true;
-
-    return false;
+  override autoscaleInfo(): null {
+    return null;
   }
 
-  clone(newId: string): IDrawing {
-    return new BarsPattern(
-      newId,
-      [...this._anchors],
-      { ...this._style },
-      { ...this._barsPatternOptions }
-    );
+  /** Called once the placement is committed: captures the candles between the two clicks and snaps the anchors onto the copy. */
+  finalizePlacement(): void {
+    if (this._placedCount !== null || !this.isValid() || this._patternOptions.source || !this._series) return;
+    const viewport = this.getViewport();
+    if (!viewport) return;
+    const bars = resolveSeriesBars(this._series.data() as unknown as readonly SeriesDatumLike[]);
+    if (!bars.length) return;
+    let from = findNearestBarIndex(bars, this._anchors[0].time);
+    let to = findNearestBarIndex(bars, this._anchors[1].time);
+    if (from < 0 || to < 0) return;
+    if (from > to) [from, to] = [to, from];
+    const picked = bars.slice(from, to + 1);
+    const first = picked[0];
+    const last = picked[picked.length - 1];
+    const y = viewport.priceScale.priceToCoordinate(first.high);
+    const lifted = y === null ? null : viewport.priceScale.coordinateToPrice(y - LIFT_PX);
+    const lift = lifted === null ? 0 : lifted - first.high;
+    this._anchors = [
+      { time: first.time, price: first.high + lift },
+      { time: last.time, price: last.low + lift },
+    ];
+    this._patternOptions = { ...this._patternOptions, source: picked.map((b): BarsPatternBar => [b.open, b.high, b.low, b.close]) };
+    this.requestUpdate();
   }
 
-  static create(
-    id: string,
-    pointA: Anchor,
-    pointB: Anchor,
-    pointC: Anchor,
-    style?: Partial<DrawingStyle>,
-    options?: Partial<BarsPatternOptions>
-  ): BarsPattern {
-    return new BarsPattern(id, [pointA, pointB, pointC], style, options);
+  override testHit(point: Point, viewport: Viewport): boolean {
+    const shape = this.layout(viewport);
+    if (!shape) return false;
+    const { xs, ys } = shape;
+    const mode = this._patternOptions.mode;
+    if (mode === 'hl' || mode === 'oc') {
+      return xs.some((x, i) => Math.abs(point.x - x) <= BAR_W / 2 + HIT && point.y >= ys[i].top - HIT && point.y <= ys[i].bottom + HIT);
+    }
+    const line = ys.map((v) => v.line);
+    for (let i = 1; i < xs.length; i += 1) {
+      if (distanceToSegment(point, { x: xs[i - 1], y: line[i - 1] }, { x: xs[i], y: line[i] }) <= HIT) return true;
+    }
+    return xs.length === 1 && Math.hypot(point.x - xs[0], point.y - line[0]) <= HIT;
+  }
+
+  override clone(newId: string): IDrawing {
+    return new BarsPattern(newId, [...this._anchors], { ...this._style }, { ...this._patternOptions });
+  }
+
+  static create(id: string, startAnchor: Anchor, endAnchor: Anchor, style?: Partial<DrawingStyle>, options?: Partial<BarsPatternOptions>): BarsPattern {
+    return new BarsPattern(id, [startAnchor, endAnchor], style, options);
+  }
+
+  anchorPixels(viewport: Viewport): [Point, Point] | null {
+    if (!this.isValid()) return null;
+    const a = this.anchorToPixel(this._anchors[0], viewport);
+    const b = this.anchorToPixel(this._anchors[1], viewport);
+    return a && b ? [a, b] : null;
+  }
+
+  /** The copied candles pinned between the two anchors: the first candle's high sits on the first anchor, the last candle's low on the second. */
+  layout(viewport: Viewport): { xs: number[]; ys: { top: number; bottom: number; line: number }[] } | null {
+    const o = this._patternOptions;
+    const source = o.source;
+    const pixels = this.anchorPixels(viewport);
+    if (!source?.length || !pixels) return null;
+    const [p1, p2] = pixels;
+    const n = source.length;
+    const high0 = source[0][1];
+    const lowN = source[n - 1][2];
+    const span = lowN - high0;
+    const axis = high0 + lowN;
+    const toY = (price: number) => {
+      const p = o.mirrored ? axis - price : price;
+      return Math.abs(span) < 1e-12 ? p1.y : p1.y + ((p - high0) / span) * (p2.y - p1.y);
+    };
+    const xs: number[] = [];
+    const ys: { top: number; bottom: number; line: number }[] = [];
+    for (let i = 0; i < n; i += 1) {
+      const [open, high, low, close] = source[o.flipped ? n - 1 - i : i];
+      xs.push(n === 1 ? p1.x : p1.x + ((p2.x - p1.x) * i) / (n - 1));
+      let a: number;
+      let b: number;
+      let line: number;
+      switch (o.mode) {
+        case 'oc':
+          a = toY(open);
+          b = toY(close);
+          line = b;
+          break;
+        case 'close':
+          a = b = line = toY(close);
+          break;
+        case 'open':
+          a = b = line = toY(open);
+          break;
+        case 'high':
+          a = b = line = toY(high);
+          break;
+        case 'low':
+          a = b = line = toY(low);
+          break;
+        case 'hl2':
+          a = b = line = toY((high + low) / 2);
+          break;
+        default:
+          a = toY(high);
+          b = toY(low);
+          line = toY((high + low) / 2);
+      }
+      ys.push({ top: Math.min(a, b), bottom: Math.max(a, b), line });
+    }
+    return { xs, ys };
+  }
+
+  /** Whether the shape is drawn over the candles. */
+  isRaised(): boolean {
+    return true;
+  }
+
+  paint(scope: BitmapCoordinatesRenderingScope, viewport: Viewport): void {
+    const { context: ctx, horizontalPixelRatio: pr, verticalPixelRatio: vr } = scope;
+    const color = this._style.lineColor;
+    ctx.save();
+    ctx.scale(pr, vr);
+
+    if (this.placedCount !== null) {
+      const pixels = this.anchorPixels(viewport);
+      if (pixels) {
+        const [p1, p2] = pixels;
+        ctx.strokeStyle = '#9598a1';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, 0);
+        ctx.lineTo(p1.x, viewport.height);
+        ctx.moveTo(p2.x, 0);
+        ctx.lineTo(p2.x, viewport.height);
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+      return;
+    }
+
+    const shape = this.layout(viewport);
+    if (!shape) {
+      ctx.restore();
+      return;
+    }
+    const { xs, ys } = shape;
+    const mode = this._patternOptions.mode;
+    if (mode === 'hl' || mode === 'oc') {
+      ctx.fillStyle = color;
+      for (let i = 0; i < xs.length; i += 1) {
+        const h = Math.max(ys[i].bottom - ys[i].top, 1);
+        ctx.fillRect(xs[i] - BAR_W / 2, ys[i].top, BAR_W, h);
+      }
+    } else {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = this._style.lineWidth;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      xs.forEach((x, i) => (i === 0 ? ctx.moveTo(x, ys[i].line) : ctx.lineTo(x, ys[i].line)));
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }
+
+function distanceToSegment(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+class BarsPatternPaneView implements IPrimitivePaneView {
+  private readonly _renderer: BarsPatternPaneRenderer;
+
+  constructor(drawing: BarsPattern) {
+    this._renderer = new BarsPatternPaneRenderer(drawing);
+  }
+
+  zOrder(): 'bottom' | 'normal' | 'top' {
+    return 'top';
+  }
+
+  renderer(): IPrimitivePaneRenderer {
+    return this._renderer;
+  }
+}
+
+class BarsPatternPaneRenderer implements IPrimitivePaneRenderer {
+  constructor(private readonly _drawing: BarsPattern) {}
+
+  draw(target: CanvasRenderingTarget2D): void {
+    target.useBitmapCoordinateSpace((scope) => {
+      const drawing = this._drawing;
+      const viewport = drawing.getViewport();
+      if (!viewport || !drawing.options.visible || !drawing.isDisplayed() || !drawing.isValid()) return;
+      drawing.paint(scope, viewport);
+      if (drawing.state === 'selected' || drawing.state === 'editing' || drawing.state === 'hovered') {
+        if (drawing.placedCount !== null) return;
+        drawControlPoints(scope.context, drawing.getControlPoints(viewport), null, scope.horizontalPixelRatio, BARS_PATTERN_COLOR);
+      }
+    });
+  }
+}
+

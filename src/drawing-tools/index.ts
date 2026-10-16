@@ -322,8 +322,10 @@ export {
   type ForecastOptions,
   type ForecastStatus,
   BarsPattern,
-  BarsPatternPaneView,
+  BARS_PATTERN_COLOR,
   type BarsPatternOptions,
+  type BarsPatternMode,
+  type BarsPatternBar,
 } from './tools/forecasting';
 
 export {

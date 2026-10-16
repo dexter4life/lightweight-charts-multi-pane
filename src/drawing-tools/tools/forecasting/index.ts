@@ -26,5 +26,4 @@ export { ProjectionPaneView } from './projection-pane-view';
 export { Forecast, FORECAST_COLOR, type ForecastOptions, type ForecastStatus } from './forecast';
 
 // BarsPattern
-export { BarsPattern, type BarsPatternOptions } from './bars-pattern';
-export { BarsPatternPaneView } from './bars-pattern-pane-view';
+export { BarsPattern, BARS_PATTERN_COLOR, type BarsPatternOptions, type BarsPatternMode, type BarsPatternBar } from './bars-pattern';

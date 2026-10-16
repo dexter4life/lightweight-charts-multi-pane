@@ -599,7 +599,7 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
     type: 'bars-pattern',
     name: 'Bars Pattern',
     category: 'forecasting',
-    requiredAnchors: 3,
+    requiredAnchors: 2,
     factory: (id, anchors, style, options) => new BarsPattern(id, anchors, style, options),
   },
   ...PATTERN_TOOL_DEFINITIONS,
