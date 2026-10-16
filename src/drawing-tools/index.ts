@@ -145,7 +145,6 @@ export {
   Ellipse,
   type EllipseOptions,
   Arc,
-  ArcPaneView,
   type ArcOptions,
   Path,
   PathPaneView,

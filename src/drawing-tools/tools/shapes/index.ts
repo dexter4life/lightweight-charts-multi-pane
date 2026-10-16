@@ -22,7 +22,6 @@ export { Ellipse, type EllipseOptions } from './ellipse';
 
 // Arc
 export { Arc, type ArcOptions } from './arc';
-export { ArcPaneView } from './arc-pane-view';
 
 // Path
 export { Path, type PathOptions } from './path';

@@ -82,6 +82,14 @@ export abstract class ShapeBase extends Drawing {
   /** Adds the outline to the current path, in bitmap pixels. */
   abstract tracePath(ctx: CanvasRenderingContext2D, pr: number, viewport: Viewport): boolean;
 
+  /**
+   * Optional closed outline used only for the fill, for shapes whose stroked path is open (e.g. an arc,
+   * whose chord is filled but not stroked). Returns false to fall back to `tracePath`.
+   */
+  traceFillPath(_ctx: CanvasRenderingContext2D, _pr: number, _viewport: Viewport): boolean {
+    return false;
+  }
+
   /** Where the text is centred, in CSS pixels. */
   abstract textCenter(viewport: Viewport): Point | null;
 
