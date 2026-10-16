@@ -1,18 +1,19 @@
 import type { IPrimitivePaneView, IPrimitivePaneRenderer } from '../../../model/ipane-primitive';
 import type { CanvasRenderingTarget2D, BitmapCoordinatesRenderingScope } from 'fancy-canvas';
 
-import type { ArrowMarker } from './arrow-marker';
 import { drawControlPoints } from '../../rendering/canvas-utils';
+import type { ArrowMarker } from './arrow-marker';
+import { ARROW_MARKER_FONT, ARROW_MARKER_GEOMETRY } from './arrow-marker';
 
 export class ArrowMarkerPaneView implements IPrimitivePaneView {
   private _renderer: ArrowMarkerPaneRenderer;
 
-  constructor(drawing: ArrowMarker) {
-    this._renderer = new ArrowMarkerPaneRenderer(drawing);
+  constructor(private _drawing: ArrowMarker) {
+    this._renderer = new ArrowMarkerPaneRenderer(_drawing);
   }
 
   zOrder(): 'bottom' | 'normal' | 'top' {
-    return 'top';
+    return this._drawing.state === 'selected' || this._drawing.state === 'editing' || this._drawing.placedCount !== null ? 'top' : 'bottom';
   }
 
   renderer(): IPrimitivePaneRenderer {
@@ -21,61 +22,53 @@ export class ArrowMarkerPaneView implements IPrimitivePaneView {
 }
 
 class ArrowMarkerPaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: ArrowMarker;
-
-  constructor(drawing: ArrowMarker) {
-    this._drawing = drawing;
-  }
+  constructor(private _drawing: ArrowMarker) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const d = this._drawing;
+    const viewport = d.getViewport();
+    if (!viewport || !d.isValid() || !d.options.visible || !d.isDisplayed()) return;
+    const l = d.layout(viewport);
+    if (!l) return;
+    const o = d.arrowMarkerOptions;
+    const color = o.backgroundColor ?? '#1E53E5';
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
-
-    const vertices = this._drawing.getArrowVertices(viewport);
-    if (!vertices || vertices.length < 3) return;
-
-    const options = this._drawing.arrowOptions;
-    const style = this._drawing.style;
-
-    ctx.save();
-
-    // Draw the arrow triangle
-    ctx.beginPath();
-    ctx.moveTo(vertices[0].x * pixelRatio, vertices[0].y * pixelRatio);
-    for (let i = 1; i < vertices.length; i++) {
-      ctx.lineTo(vertices[i].x * pixelRatio, vertices[i].y * pixelRatio);
-    }
-    ctx.closePath();
-
-    // Fill
-    if (options.filled) {
-      ctx.fillStyle = style.lineColor;
+    if (l.polygon.length) {
+      ctx.save();
+      ctx.beginPath();
+      l.polygon.forEach((p, i) => (i ? ctx.lineTo(p.x * pr, p.y * pr) : ctx.moveTo(p.x * pr, p.y * pr)));
+      ctx.closePath();
+      ctx.fillStyle = color;
       ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = ARROW_MARKER_GEOMETRY.outline * pr;
+      ctx.stroke();
+      ctx.restore();
     }
 
-    // Stroke
-    ctx.strokeStyle = style.lineColor;
-    ctx.lineWidth = style.lineWidth * pixelRatio;
-    ctx.stroke();
-
-    ctx.restore();
-
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
+    if (o.showText && o.text) {
+      const size = o.textSize ?? 16;
+      const lines = o.text.split('\n');
+      const lh = size * 1.2;
+      ctx.save();
+      ctx.font = `${o.textItalic ? 'italic ' : ''}${o.textBold ? 'bold ' : ''}${size * pr}px ${ARROW_MARKER_FONT}`;
+      ctx.fillStyle = o.textColor ?? color;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      const x = (l.p1.x - ARROW_MARKER_GEOMETRY.textGap) * pr;
+      const top = l.p1.y - ((lines.length - 1) * lh) / 2;
+      lines.forEach((line, i) => ctx.fillText(line, x, (top + i * lh) * pr));
+      ctx.restore();
     }
+
+    const active = d.state === 'selected' || d.state === 'editing';
+    const placing = d.placedCount !== null && d.placedCount < 2;
+    if (active || placing) drawControlPoints(ctx, d.getControlPoints(viewport), null, pr, color);
   }
 }

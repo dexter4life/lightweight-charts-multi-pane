@@ -15,7 +15,7 @@ export { Highlighter, type HighlighterOptions } from './highlighter';
 export { HighlighterPaneView } from './highlighter-pane-view';
 
 // ArrowMarker
-export { ArrowMarker, type ArrowMarkerOptions, type ArrowDirection } from './arrow-marker';
+export { ArrowMarker, ARROW_MARKER_FONT, ARROW_MARKER_GEOMETRY, type ArrowMarkerOptions, type ArrowDirection } from './arrow-marker';
 export { ArrowMarkerPaneView } from './arrow-marker-pane-view';
 
 // ArrowMarkUp

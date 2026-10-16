@@ -442,7 +442,7 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
     type: 'arrow-marker',
     name: 'Arrow Marker',
     category: 'annotation',
-    requiredAnchors: 1,
+    requiredAnchors: 2,
     factory: (id, anchors, style, options) => new ArrowMarker(id, anchors, style, options),
   },
   {
