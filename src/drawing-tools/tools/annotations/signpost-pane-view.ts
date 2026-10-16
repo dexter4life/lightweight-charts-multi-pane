@@ -1,8 +1,7 @@
 import type { IPrimitivePaneView, IPrimitivePaneRenderer } from '../../../model/ipane-primitive';
 import type { CanvasRenderingTarget2D, BitmapCoordinatesRenderingScope } from 'fancy-canvas';
 
-import type { Signpost } from './signpost';
-import { drawControlPoints } from '../../rendering/canvas-utils';
+import { SIGNPOST_GEOMETRY, type Signpost } from './signpost';
 
 export class SignpostPaneView implements IPrimitivePaneView {
   private _renderer: SignpostPaneRenderer;
@@ -12,7 +11,7 @@ export class SignpostPaneView implements IPrimitivePaneView {
   }
 
   zOrder(): 'bottom' | 'normal' | 'top' {
-    return 'top';
+    return 'bottom';
   }
 
   renderer(): IPrimitivePaneRenderer {
@@ -21,109 +20,82 @@ export class SignpostPaneView implements IPrimitivePaneView {
 }
 
 class SignpostPaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: Signpost;
-
-  constructor(drawing: Signpost) {
-    this._drawing = drawing;
-  }
+  constructor(private _drawing: Signpost) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const d = this._drawing;
+    const viewport = d.getViewport();
+    if (!viewport || !d.isValid() || !d.options.visible || !d.isDisplayed()) return;
+    const l = d.layout(viewport);
+    if (!l) return;
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
-
-    const anchor = this._drawing.anchors[0];
-    const p = this._drawing.anchorToPixel(anchor, viewport);
-    if (!p) return;
-
-    const options = this._drawing.signpostOptions;
-    const text = options.text ?? '';
-    const fontSize = (options.fontSize ?? 11) * pixelRatio;
-    const bgColor = options.backgroundColor ?? '#FF9800';
-    const textColor = options.textColor ?? '#000000';
-    const isRight = options.direction !== 'left';
-    const arrowSize = 10 * pixelRatio;
-    const padding = 8 * pixelRatio;
-    const height = 24 * pixelRatio;
-    const poleHeight = 30 * pixelRatio;
-
-    const x = p.x * pixelRatio;
-    const y = p.y * pixelRatio;
-
+    const g = SIGNPOST_GEOMETRY;
+    const o = d.signpostOptions;
     ctx.save();
 
-    // Measure text
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    const textWidth = ctx.measureText(text).width;
-    const bodyWidth = textWidth + padding * 2;
+    // Stem from the label to the bar.
+    if (l.stem) {
+      const sx = Math.round(l.x * pr) + 0.5;
+      ctx.strokeStyle = g.stemColor;
+      ctx.lineWidth = pr;
+      ctx.beginPath();
+      ctx.moveTo(sx, l.stem.from * pr);
+      ctx.lineTo(sx, Math.round(l.stem.to * pr) + 0.5);
+      ctx.stroke();
+    }
 
-    // Draw pole
-    ctx.strokeStyle = bgColor;
-    ctx.lineWidth = 2 * pixelRatio;
+    if (l.emoji) {
+      const cx = l.emoji.cx * pr;
+      const cy = l.emoji.cy * pr;
+      ctx.beginPath();
+      ctx.arc(cx, cy, g.emojiRadius * pr, 0, Math.PI * 2);
+      ctx.fillStyle = o.pinColor ?? '#3861F6';
+      ctx.fill();
+      ctx.font = `${g.emojiSize * pr}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#000000';
+      ctx.fillText(o.emoji ?? '🙂', cx, cy + pr);
+    }
+
+    // Label: a rounded box whose 1px border stays crisp on device pixels.
+    const L = Math.round(l.box.x * pr);
+    const T = Math.round(l.box.y * pr);
+    const W = Math.round(l.box.w * pr);
+    const H = Math.round(l.box.h * pr);
+    const r = g.radius * pr;
     ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x, y - poleHeight - height);
+    ctx.roundRect(L + 0.5, T + 0.5, W, H, r);
+    ctx.fillStyle = o.backgroundColor ?? '#FFFFFF';
+    ctx.fill();
+    ctx.strokeStyle = o.borderColor ?? '#E1E3EA';
+    ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Draw signpost body with arrow
-    const signY = y - poleHeight - height;
-
-    ctx.fillStyle = bgColor;
-    ctx.beginPath();
-
-    if (isRight) {
-      ctx.moveTo(x, signY);
-      ctx.lineTo(x + bodyWidth, signY);
-      ctx.lineTo(x + bodyWidth + arrowSize, signY + height / 2);
-      ctx.lineTo(x + bodyWidth, signY + height);
-      ctx.lineTo(x, signY + height);
-    } else {
-      ctx.moveTo(x, signY);
-      ctx.lineTo(x - bodyWidth, signY);
-      ctx.lineTo(x - bodyWidth - arrowSize, signY + height / 2);
-      ctx.lineTo(x - bodyWidth, signY + height);
-      ctx.lineTo(x, signY + height);
-    }
-
-    ctx.closePath();
-    ctx.fill();
-
-    // Draw text
-    ctx.fillStyle = textColor;
-    ctx.font = `bold ${fontSize}px sans-serif`;
+    const { font } = d.textMetrics();
+    ctx.font = font.replace(/(\d+(?:\.\d+)?)px/, (_, n) => `${Number(n) * pr}px`);
+    ctx.fillStyle = o.textColor ?? '#1F1F1F';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    ctx.fillText(o.text ?? '', l.box.x * pr + (l.box.w * pr) / 2, (l.box.y + l.box.h / 2 + g.textDy) * pr);
 
-    if (isRight) {
-      ctx.textAlign = 'left';
-      ctx.fillText(text, x + padding, signY + height / 2);
-    } else {
-      ctx.textAlign = 'right';
-      ctx.fillText(text, x - padding, signY + height / 2);
+    if (d.state === 'selected' || d.state === 'editing') {
+      const hh = g.handleHalf * pr;
+      const hx = Math.round(l.x * pr);
+      const hy = Math.round(l.anchorY * pr);
+      ctx.beginPath();
+      ctx.roundRect(hx - hh, hy - hh, hh * 2, hh * 2, 3 * pr);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fill();
+      ctx.lineWidth = 2 * pr;
+      ctx.strokeStyle = '#2962FF';
+      ctx.stroke();
     }
-
-    // Draw base circle
-    ctx.fillStyle = bgColor;
-    ctx.beginPath();
-    ctx.arc(x, y, 3 * pixelRatio, 0, Math.PI * 2);
-    ctx.fill();
-
     ctx.restore();
-
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
-    }
   }
 }
