@@ -4,7 +4,6 @@ export { RectanglePaneView } from './rectangle-pane-view';
 
 // Rotated Rectangle
 export { RotatedRectangle, type RotatedRectangleOptions } from './rotated-rectangle';
-export { RotatedRectanglePaneView } from './rotated-rectangle-pane-view';
 
 // Circle
 export { Circle, type CircleOptions } from './circle';

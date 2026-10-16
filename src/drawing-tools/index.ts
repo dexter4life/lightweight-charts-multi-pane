@@ -130,7 +130,6 @@ export {
   RectanglePaneView,
   type RectangleOptions,
   RotatedRectangle,
-  RotatedRectanglePaneView,
   type RotatedRectangleOptions,
   Circle,
   type CircleOptions,
