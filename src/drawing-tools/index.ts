@@ -147,7 +147,6 @@ export {
   Arc,
   type ArcOptions,
   Path,
-  PathPaneView,
   type PathOptions,
   Polyline,
   PolylinePaneView,

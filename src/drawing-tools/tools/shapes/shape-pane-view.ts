@@ -68,6 +68,7 @@ class ShapePaneRenderer implements IPrimitivePaneRenderer {
       drawing.tracePath(ctx, pr, viewport);
     }
     ctx.stroke();
+    drawing.drawOverlay(ctx, pr, viewport);
     if (o.showText && o.text) this.drawText(ctx, pr, viewport);
     ctx.restore();
   }

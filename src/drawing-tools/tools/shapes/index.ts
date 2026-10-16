@@ -25,7 +25,6 @@ export { Arc, type ArcOptions } from './arc';
 
 // Path
 export { Path, type PathOptions } from './path';
-export { PathPaneView } from './path-pane-view';
 
 // Polyline
 export { Polyline, type PolylineOptions } from './polyline';

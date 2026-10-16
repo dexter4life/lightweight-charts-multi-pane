@@ -16,6 +16,9 @@ export interface ShapeOptions extends DrawingOptions {
   textBold?: boolean;
   textItalic?: boolean;
   visibility?: VisibilityMap;
+  /** Arrow caps for open paths. */
+  leftEnd?: 'normal' | 'arrow';
+  rightEnd?: 'normal' | 'arrow';
 }
 
 export const DEFAULT_SHAPE_OPTIONS = {
@@ -89,6 +92,9 @@ export abstract class ShapeBase extends Drawing {
   traceFillPath(_ctx: CanvasRenderingContext2D, _pr: number, _viewport: Viewport): boolean {
     return false;
   }
+
+  /** Extra drawing after the outline is stroked (e.g. arrow caps). */
+  drawOverlay(_ctx: CanvasRenderingContext2D, _pr: number, _viewport: Viewport): void {}
 
   /** Where the text is centred, in CSS pixels. */
   abstract textCenter(viewport: Viewport): Point | null;
