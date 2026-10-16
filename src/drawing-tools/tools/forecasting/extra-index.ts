@@ -19,7 +19,6 @@ export {
   type FixedRangeVolumeProfileOptions,
   type VolumeProfileRenderData,
 } from './fixed-range-volume-profile';
-export { FixedRangeVolumeProfilePaneView } from './fixed-range-volume-profile-pane-view';
 export {
   AnchoredVolumeProfile,
   type AnchoredVolumeProfileOptions,
