@@ -1,78 +1,39 @@
-import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
-
-import type { Geometry, LineGeometry } from '../../core/geometry';
-import type { Anchor, DrawingOptions, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
-import { PatternDrawing } from './pattern-base';
-import { CyclicLinesPaneView } from './cyclic-lines-pane-view';
+import type { Anchor, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
+import { CycleDrawing, type CycleOptions } from './cycle-drawing';
 import { PATTERN_HIT_THRESHOLD } from './pattern-utils';
 
-export interface CyclicLinesOptions extends DrawingOptions {
-  showLabels?: boolean;
-}
+export type CyclicLinesOptions = CycleOptions;
 
-export class CyclicLines extends PatternDrawing<CyclicLinesOptions> {
+export const CYCLIC_LINES_COLOR = '#80ccdb';
+
+export class CyclicLines extends CycleDrawing {
   readonly type = 'cyclic-lines';
 
-  protected _patternOptions: CyclicLinesOptions;
-
-  constructor(
-    id: string,
-    anchors: Anchor[] = [],
-    style: Partial<DrawingStyle> = {},
-    options: Partial<CyclicLinesOptions> = {}
-  ) {
-    const { showLabels, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
-
-    this._patternOptions = {
-      ...this._options,
-      showLabels: showLabels ?? false,
-    };
+  constructor(id: string, anchors: Anchor[] = [], style: Partial<DrawingStyle> = {}, options: Partial<CyclicLinesOptions> = {}) {
+    super(id, anchors, style, options, { lineColor: CYCLIC_LINES_COLOR });
   }
 
-  get cyclicLinesOptions(): CyclicLinesOptions {
-    return this._patternOptions;
-  }
-
-  setCyclicLinesOptions(options: Partial<CyclicLinesOptions>): void {
-    this.updatePatternOptions(options);
-  }
-
-  override isValid(): boolean {
-    return this._anchors.length >= 2;
-  }
-
-  override paneViews(): IPrimitivePaneView[] {
-    return [new CyclicLinesPaneView(this)];
-  }
-
+  /** Vertical lines start at the first anchor and repeat toward (and past) the second one. */
   getLineCoordinates(viewport: Viewport): number[] {
-    if (!this.isValid()) return [];
-
-    const p0 = this.anchorToPixel(this._anchors[0], viewport);
-    const p1 = this.anchorToPixel(this._anchors[1], viewport);
-    if (!p0 || !p1) return [];
-
-    const left = Math.min(p0.x, p1.x);
-    const right = Math.max(p0.x, p1.x);
-    const spacing = right - left;
-
-    if (spacing < 1) return [left];
+    const pixels = this.anchorPixels(viewport);
+    if (!pixels) return [];
+    const [a, b] = pixels;
+    const period = b.x - a.x;
+    if (Math.abs(period) < 1) return [a.x];
 
     const xs: number[] = [];
-    for (let x = left; x <= viewport.width; x += spacing) {
-      if (x >= 0) xs.push(x);
-    }
-
+    for (let x = a.x; x >= -1 && x <= viewport.width + 1 && xs.length < 2000; x += period) xs.push(x);
     return xs;
   }
 
-  override computeGeometry(viewport: Viewport): Geometry[] {
-    return this.getLineCoordinates(viewport).map((x) => ({
-      type: 'line',
-      start: { x, y: 0 },
-      end: { x, y: viewport.height },
-    } as LineGeometry));
+  paint(ctx: CanvasRenderingContext2D, viewport: Viewport): void {
+    ctx.beginPath();
+    for (const x of this.getLineCoordinates(viewport)) {
+      const px = Math.round(x - 0.5) + 0.5;
+      ctx.moveTo(px, 0);
+      ctx.lineTo(px, viewport.height);
+    }
+    ctx.stroke();
   }
 
   override testHit(point: Point, viewport: Viewport): boolean {
@@ -81,5 +42,9 @@ export class CyclicLines extends PatternDrawing<CyclicLinesOptions> {
 
   override clone(newId: string): IDrawing {
     return new CyclicLines(newId, [...this._anchors], { ...this._style }, { ...this._patternOptions });
+  }
+
+  static create(id: string, anchors: Anchor[], style?: Partial<DrawingStyle>, options?: Partial<CyclicLinesOptions>): CyclicLines {
+    return new CyclicLines(id, anchors, style, options);
   }
 }

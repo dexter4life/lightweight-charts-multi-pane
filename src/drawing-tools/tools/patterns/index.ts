@@ -12,11 +12,8 @@ import { ABCDPattern, CypherPattern, HeadAndShouldersPattern, ThreeDrivesPattern
 import { XABCDPattern } from './xabcd-pattern';
 
 export { CyclicLines, type CyclicLinesOptions } from './cyclic-lines';
-export { CyclicLinesPaneView } from './cyclic-lines-pane-view';
 export { TimeCycles, type TimeCyclesOptions } from './time-cycles';
-export { TimeCyclesPaneView } from './time-cycles-pane-view';
 export { SineLine, type SineLineOptions } from './sine-line';
-export { SineLinePaneView } from './sine-line-pane-view';
 export { XABCDPattern, type XABCDPatternOptions } from './xabcd-pattern';
 export { XABCDPatternPaneView } from './xabcd-pattern-pane-view';
 export {
@@ -36,6 +33,7 @@ export { ElliottCorrectionWave, type ElliottCorrectionWaveOptions } from './elli
 export { ElliottTriangleWave, type ElliottTriangleWaveOptions } from './elliott-triangle-wave';
 export { ElliottDoubleCombo, type ElliottDoubleComboOptions } from './elliott-double-combo';
 export { ElliottTripleCombo, type ElliottTripleComboOptions } from './elliott-triple-combo';
+export { CycleDrawing, type CycleOptions } from './cycle-drawing';
 export { ELLIOTT_DEGREES, ElliottWaveDrawing, type ElliottWaveOptions } from './elliott-wave-base';
 
 export interface PatternToolDefinition extends DrawingToolDefinition {

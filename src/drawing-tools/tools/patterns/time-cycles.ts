@@ -1,95 +1,87 @@
-import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
+import type { Anchor, ControlPoint, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
+import { CycleDrawing, type CycleOptions } from './cycle-drawing';
+import { PATTERN_HIT_THRESHOLD } from './pattern-utils';
 
-import type { ArcGeometry, Geometry } from '../../core/geometry';
-import type { Anchor, DrawingOptions, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
-import { PatternDrawing } from './pattern-base';
-import { TimeCyclesPaneView } from './time-cycles-pane-view';
-import { PATTERN_HIT_THRESHOLD, distanceToPolyline, sampleSemicirclePoints } from './pattern-utils';
+export type TimeCyclesOptions = CycleOptions;
 
-export interface TimeCyclesOptions extends DrawingOptions {
-  showLabels?: boolean;
+export const TIME_CYCLES_COLOR = '#159980';
+export const TIME_CYCLES_FILL = 'rgba(106, 168, 79, 0.5)';
+
+/** Both anchors share one price: the second only sets the period. */
+function levelled(anchors: Anchor[]): Anchor[] {
+  return anchors.length >= 2 ? [anchors[0], { ...anchors[1], price: anchors[0].price }, ...anchors.slice(2)] : anchors;
 }
 
-export class TimeCycles extends PatternDrawing<TimeCyclesOptions> {
+export class TimeCycles extends CycleDrawing {
   readonly type = 'time-cycles';
 
-  protected _patternOptions: TimeCyclesOptions;
-
-  constructor(
-    id: string,
-    anchors: Anchor[] = [],
-    style: Partial<DrawingStyle> = {},
-    options: Partial<TimeCyclesOptions> = {}
-  ) {
-    const { showLabels, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
-
-    this._patternOptions = {
-      ...this._options,
-      showLabels: showLabels ?? false,
-    };
+  constructor(id: string, anchors: Anchor[] = [], style: Partial<DrawingStyle> = {}, options: Partial<TimeCyclesOptions> = {}) {
+    super(id, levelled(anchors), style, options, { lineColor: TIME_CYCLES_COLOR, fillColor: TIME_CYCLES_FILL });
   }
 
-  get timeCyclesOptions(): TimeCyclesOptions {
-    return this._patternOptions;
+  override setAnchors(anchors: Anchor[]): void {
+    super.setAnchors(levelled(anchors));
   }
 
-  setTimeCyclesOptions(options: Partial<TimeCyclesOptions>): void {
-    this.updatePatternOptions(options);
+  override updateAnchor(index: number, anchor: Anchor): void {
+    super.updateAnchor(index, anchor);
+    if (this._anchors.length >= 2) this._anchors[1] = { ...this._anchors[1], price: this._anchors[0].price };
   }
 
-  override isValid(): boolean {
-    return this._anchors.length >= 2;
+  override getControlPoints(viewport: Viewport): ControlPoint[] {
+    const points = super.getControlPoints(viewport);
+    return points.map((p) => ({ ...p, y: points[0].y }));
   }
 
-  override paneViews(): IPrimitivePaneView[] {
-    return [new TimeCyclesPaneView(this)];
-  }
+  /** Semicircles standing on the baseline, one per period, repeating in both directions. */
+  getArcs(viewport: Viewport): { cx: number; radius: number; y: number }[] {
+    const pixels = this.anchorPixels(viewport);
+    if (!pixels) return [];
+    const [a, b] = pixels;
+    const period = Math.abs(b.x - a.x);
+    if (period < 2) return [];
 
-  getArcData(viewport: Viewport): Array<{ startX: number; diameter: number; baselineY: number }> {
-    if (!this.isValid()) return [];
-
-    const p0 = this.anchorToPixel(this._anchors[0], viewport);
-    const p1 = this.anchorToPixel(this._anchors[1], viewport);
-    if (!p0 || !p1) return [];
-
-    const startX = Math.min(p0.x, p1.x);
-    const endX = Math.max(p0.x, p1.x);
-    const diameter = endX - startX;
-
-    if (diameter < 2) return [];
-
-    const baselineY = (p0.y + p1.y) / 2;
-    const arcs: Array<{ startX: number; diameter: number; baselineY: number }> = [];
-
-    for (let x = startX; x <= viewport.width; x += diameter) {
-      if (x + diameter >= 0) {
-        arcs.push({ startX: x, diameter, baselineY });
-      }
-    }
-
+    const first = Math.floor((-period - a.x) / period);
+    const last = Math.ceil((viewport.width + period - a.x) / period);
+    const arcs: { cx: number; radius: number; y: number }[] = [];
+    for (let k = first; k <= last && arcs.length < 2000; k++) arcs.push({ cx: a.x + (k + 0.5) * period, radius: period / 2, y: a.y });
     return arcs;
   }
 
-  override computeGeometry(viewport: Viewport): Geometry[] {
-    return this.getArcData(viewport).map((arc) => ({
-      type: 'arc',
-      center: { x: arc.startX + arc.diameter / 2, y: arc.baselineY },
-      radius: arc.diameter / 2,
-      startAngle: Math.PI,
-      endAngle: 0,
-      counterClockwise: false,
-    } as ArcGeometry));
+  paint(ctx: CanvasRenderingContext2D, viewport: Viewport): void {
+    const arcs = this.getArcs(viewport);
+    if (this._patternOptions.fillBackground !== false) {
+      ctx.save();
+      ctx.fillStyle = this._style.fillColor ?? TIME_CYCLES_FILL;
+      ctx.beginPath();
+      for (const arc of arcs) {
+        ctx.moveTo(arc.cx - arc.radius, arc.y);
+        ctx.arc(arc.cx, arc.y, arc.radius, Math.PI, 0);
+        ctx.closePath();
+      }
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.beginPath();
+    for (const arc of arcs) {
+      ctx.moveTo(arc.cx - arc.radius, arc.y);
+      ctx.arc(arc.cx, arc.y, arc.radius, Math.PI, 0);
+    }
+    ctx.stroke();
   }
 
   override testHit(point: Point, viewport: Viewport): boolean {
-    return this.getArcData(viewport).some((arc) => {
-      const sampled = sampleSemicirclePoints(arc.startX, arc.diameter, arc.baselineY);
-      return distanceToPolyline(point, sampled) <= PATTERN_HIT_THRESHOLD;
+    return this.getArcs(viewport).some((arc) => {
+      if (point.y > arc.y + PATTERN_HIT_THRESHOLD || Math.abs(point.x - arc.cx) > arc.radius + PATTERN_HIT_THRESHOLD) return false;
+      return Math.abs(Math.hypot(point.x - arc.cx, point.y - arc.y) - arc.radius) <= PATTERN_HIT_THRESHOLD;
     });
   }
 
   override clone(newId: string): IDrawing {
     return new TimeCycles(newId, [...this._anchors], { ...this._style }, { ...this._patternOptions });
+  }
+
+  static create(id: string, anchors: Anchor[], style?: Partial<DrawingStyle>, options?: Partial<TimeCyclesOptions>): TimeCycles {
+    return new TimeCycles(id, anchors, style, options);
   }
 }
