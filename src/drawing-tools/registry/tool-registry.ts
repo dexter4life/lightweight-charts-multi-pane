@@ -507,7 +507,7 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
     type: 'double-curve',
     name: 'Double Curve',
     category: 'shape',
-    requiredAnchors: 3,
+    requiredAnchors: 2,
     factory: (id, anchors, style, options) => new DoubleCurve(id, anchors, style, options),
   },
 

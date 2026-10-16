@@ -153,7 +153,6 @@ export {
   Curve,
   type CurveOptions,
   DoubleCurve,
-  DoubleCurvePaneView,
   type DoubleCurveOptions,
 } from './tools/shapes';
 

@@ -34,4 +34,3 @@ export { Curve, type CurveOptions } from './curve';
 
 // Double Curve
 export { DoubleCurve, type DoubleCurveOptions } from './double-curve';
-export { DoubleCurvePaneView } from './double-curve-pane-view';
