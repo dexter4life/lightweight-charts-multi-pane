@@ -52,6 +52,10 @@ export abstract class GlyphDrawing extends Drawing {
   abstract glyph(): string;
   /** Fill colour, or null for glyphs that bring their own colours. */
   abstract tint(): string | null;
+  /** A picture drawn in place of the text, when the glyph is an image. */
+  image(): CanvasImageSource | null {
+    return null;
+  }
 
   get glyphOptions(): GlyphOptions {
     return this._glyphOptions;

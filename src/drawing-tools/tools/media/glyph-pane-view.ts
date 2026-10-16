@@ -77,14 +77,19 @@ class GlyphPaneRenderer implements IPrimitivePaneRenderer {
     ctx.translate(c.x * pr, c.y * pr);
     ctx.rotate(turn);
 
-    const fit = fitOf(ctx, d.glyph());
-    const k = (size * d.fill()) / fit.extent;
-    ctx.font = `${PROBE_PX * k}px ${FONT_STACK}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    const tint = d.tint();
-    if (tint) ctx.fillStyle = tint;
-    ctx.fillText(d.glyph(), -fit.cx * k, -fit.cy * k);
+    const picture = d.image();
+    if (picture) {
+      ctx.drawImage(picture, -size / 2, -size / 2, size, size);
+    } else if (d.glyph()) {
+      const fit = fitOf(ctx, d.glyph());
+      const k = (size * d.fill()) / fit.extent;
+      ctx.font = `${PROBE_PX * k}px ${FONT_STACK}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      const tint = d.tint();
+      if (tint) ctx.fillStyle = tint;
+      ctx.fillText(d.glyph(), -fit.cx * k, -fit.cy * k);
+    }
 
     if (showHandles) {
       ctx.strokeStyle = BLUE;
