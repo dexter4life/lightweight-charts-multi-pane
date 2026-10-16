@@ -9,8 +9,7 @@ import { Sector } from './sector';
 
 export { PositionForecast, type PositionForecastOptions } from './position-forecast';
 export { PositionForecastPaneView } from './position-forecast-pane-view';
-export { GhostFeed, type GhostFeedOptions, type GhostFeedProjectedBar } from './ghost-feed';
-export { GhostFeedPaneView } from './ghost-feed-pane-view';
+export { GhostFeed, type GhostFeedOptions } from './ghost-feed';
 export { Sector, type SectorOptions } from './sector';
 export { SectorPaneView } from './sector-pane-view';
 export { AnchoredVwap, type AnchoredVwapOptions, type AnchoredVwapPoint } from './anchored-vwap';

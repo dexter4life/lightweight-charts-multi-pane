@@ -333,7 +333,6 @@ export {
   PositionForecastPaneView,
   type PositionForecastOptions,
   GhostFeed,
-  GhostFeedPaneView,
   type GhostFeedOptions,
   Sector,
   SectorPaneView,
