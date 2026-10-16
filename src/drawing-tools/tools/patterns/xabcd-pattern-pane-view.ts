@@ -41,7 +41,7 @@ class XABCDPatternPaneRenderer implements IPrimitivePaneRenderer {
 
     const { context: ctx, horizontalPixelRatio: pr } = scope;
     const points = drawing.getPatternPoints(viewport);
-    if (points.length < 5) return;
+    if (!points.length) return;
 
     const options = drawing.xabcdPatternOptions;
     const { lineColor, lineWidth, fillColor } = drawing.style;
