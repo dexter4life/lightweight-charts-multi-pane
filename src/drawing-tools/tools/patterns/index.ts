@@ -32,16 +32,11 @@ export {
   type HeadAndShouldersOptions,
 } from './harmonic-patterns';
 export { ElliottImpulseWave, type ElliottImpulseWaveOptions } from './elliott-impulse-wave';
-export { ElliottImpulseWavePaneView } from './elliott-impulse-wave-pane-view';
 export { ElliottCorrectionWave, type ElliottCorrectionWaveOptions } from './elliott-correction-wave';
-export { ElliottCorrectionWavePaneView } from './elliott-correction-wave-pane-view';
 export { ElliottTriangleWave, type ElliottTriangleWaveOptions } from './elliott-triangle-wave';
-export { ElliottTriangleWavePaneView } from './elliott-triangle-wave-pane-view';
 export { ElliottDoubleCombo, type ElliottDoubleComboOptions } from './elliott-double-combo';
-export { ElliottDoubleComboPaneView } from './elliott-double-combo-pane-view';
 export { ElliottTripleCombo, type ElliottTripleComboOptions } from './elliott-triple-combo';
-export { ElliottTripleComboPaneView } from './elliott-triple-combo-pane-view';
-export { type ElliottWaveOptions } from './elliott-wave-base';
+export { ELLIOTT_DEGREES, ElliottWaveDrawing, type ElliottWaveOptions } from './elliott-wave-base';
 
 export interface PatternToolDefinition extends DrawingToolDefinition {
   factory: (
@@ -118,35 +113,35 @@ export const PATTERN_TOOL_DEFINITIONS: PatternToolDefinition[] = [
   },
   {
     type: 'elliott-impulse-wave',
-    name: 'Elliott Impulse Wave',
+    name: 'Elliott Impulse Wave (12345)',
     category: 'pattern',
     requiredAnchors: 6,
     factory: (id, anchors, style, options) => new ElliottImpulseWave(id, anchors, style, options),
   },
   {
     type: 'elliott-correction-wave',
-    name: 'Elliott Correction Wave',
+    name: 'Elliott Correction Wave (ABC)',
     category: 'pattern',
     requiredAnchors: 4,
     factory: (id, anchors, style, options) => new ElliottCorrectionWave(id, anchors, style, options),
   },
   {
     type: 'elliott-triangle-wave',
-    name: 'Elliott Triangle Wave',
+    name: 'Elliott Triangle Wave (ABCDE)',
     category: 'pattern',
     requiredAnchors: 6,
     factory: (id, anchors, style, options) => new ElliottTriangleWave(id, anchors, style, options),
   },
   {
     type: 'elliott-double-combo',
-    name: 'Elliott Double Combo',
+    name: 'Elliott Double Combo Wave (WXY)',
     category: 'pattern',
     requiredAnchors: 4,
     factory: (id, anchors, style, options) => new ElliottDoubleCombo(id, anchors, style, options),
   },
   {
     type: 'elliott-triple-combo',
-    name: 'Elliott Triple Combo',
+    name: 'Elliott Triple Combo Wave (WXYXZ)',
     category: 'pattern',
     requiredAnchors: 6,
     factory: (id, anchors, style, options) => new ElliottTripleCombo(id, anchors, style, options),
