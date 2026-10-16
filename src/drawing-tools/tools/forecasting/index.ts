@@ -20,7 +20,6 @@ export { DatePriceRange, type DatePriceRangeOptions } from './date-price-range';
 
 // Projection
 export { Projection, type ProjectionOptions } from './projection';
-export { ProjectionPaneView } from './projection-pane-view';
 
 // Forecast
 export { Forecast, FORECAST_COLOR, type ForecastOptions, type ForecastStatus } from './forecast';

@@ -1,226 +1,212 @@
-import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
+import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
+import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
-import { Drawing } from '../../core/drawing';
-import type { Anchor, Point, Viewport, DrawingStyle, DrawingOptions, IDrawing } from '../../core/types';
-import type { Geometry, LineGeometry, RectangleGeometry } from '../../core/geometry';
-import { distanceToLineSegment } from '../../core/geometry';
-import { ProjectionPaneView } from './projection-pane-view';
+import type { Anchor, ControlPoint, DrawingOptions, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
+import { drawControlPoints } from '../../rendering/canvas-utils';
+import type { IntervalUnit, VisibilityMap } from '../lines/trend-line';
+import { PatternDrawing } from '../patterns/pattern-base';
 
-/**
- * Projection options
- */
 export interface ProjectionOptions extends DrawingOptions {
-  showPrices?: boolean;
-  showPercentage?: boolean;
-  showLabels?: boolean;
-  filled?: boolean;
+  visibility?: VisibilityMap;
+  /** Fill colour next to the centre point. */
+  color1: string;
+  /** Fill colour at the arc. */
+  color2: string;
 }
 
-/**
- * Projection - Price projection tool.
- *
- * Features:
- * - Three anchor points: initial move (A to B), projection start (C)
- * - Projects the A-B move from point C
- * - Shows target price and percentage
- */
-export class Projection extends Drawing {
+export const PROJECTION_LINE = '#9598A1';
+
+const DEFAULT_OPTIONS: ProjectionOptions = {
+  color1: 'rgba(41, 98, 255, 0.2)',
+  color2: 'rgba(156, 39, 176, 0.2)',
+};
+
+const HIT = 5;
+/** The fill gradient starts this far left of the centre and ends just past the arc. */
+const GRADIENT_LEAD = 50;
+const GRADIENT_TAIL = 10;
+
+interface Sector {
+  c: Point;
+  p2: Point;
+  /** Third point pulled onto the circle through the second. */
+  p3: Point;
+  r: number;
+  a2: number;
+  a3: number;
+  anticlockwise: boolean;
+  /** Signed sweep from the second to the third point, in (-PI, PI]. */
+  delta: number;
+}
+
+function wrapAngle(a: number): number {
+  let v = a;
+  while (v > Math.PI) v -= 2 * Math.PI;
+  while (v <= -Math.PI) v += 2 * Math.PI;
+  return v;
+}
+
+/** A pie slice: the second point sets the radius, the third only sets where the arc stops. */
+export class Projection extends PatternDrawing<ProjectionOptions> {
   readonly type = 'projection';
+  protected _patternOptions: ProjectionOptions;
 
-  protected static readonly REQUIRED_ANCHORS = 3;
-  protected static readonly HIT_THRESHOLD = 5;
+  private _interval: { unit: IntervalUnit; multiplier: number } | null = null;
 
-  private _projectionOptions: ProjectionOptions;
-
-  constructor(
-    id: string,
-    anchors: Anchor[] = [],
-    style: Partial<DrawingStyle> = {},
-    options: Partial<ProjectionOptions> = {}
-  ) {
-    const { showPrices, showPercentage, showLabels, filled, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
-
-    this._projectionOptions = {
-      ...this._options,
-      showPrices: showPrices ?? true,
-      showPercentage: showPercentage ?? true,
-      showLabels: showLabels ?? true,
-      filled: filled ?? true,
-    };
+  constructor(id: string, anchors: Anchor[] = [], style: Partial<DrawingStyle> = {}, options: Partial<ProjectionOptions> = {}) {
+    super(id, anchors, { lineColor: PROJECTION_LINE, lineWidth: 1, ...style }, {
+      ...(options.visible !== undefined ? { visible: options.visible } : {}),
+      ...(options.locked !== undefined ? { locked: options.locked } : {}),
+    });
+    this._patternOptions = { ...DEFAULT_OPTIONS, ...options };
   }
 
   get projectionOptions(): ProjectionOptions {
-    return this._projectionOptions;
+    return this._patternOptions;
   }
 
   setProjectionOptions(options: Partial<ProjectionOptions>): void {
-    this._projectionOptions = { ...this._projectionOptions, ...options };
+    this.updatePatternOptions(options);
+    const { visible, locked } = options;
+    if (visible !== undefined) this._options = { ...this._options, visible };
+    if (locked !== undefined) this._options = { ...this._options, locked };
+  }
+
+  setInterval(unit: IntervalUnit, multiplier: number): void {
+    this._interval = { unit, multiplier };
     this.requestUpdate();
   }
 
-  isValid(): boolean {
-    return this._anchors.length >= Projection.REQUIRED_ANCHORS;
+  override isDisplayed(): boolean {
+    const map = this._patternOptions.visibility;
+    if (!map || !this._interval) return true;
+    const rule = map[this._interval.unit];
+    if (!rule) return true;
+    return rule.enabled && this._interval.multiplier >= rule.min && this._interval.multiplier <= rule.max;
   }
 
-  paneViews(): IPrimitivePaneView[] {
+  override toJSON() {
+    return { ...super.toJSON(), options: { ...this._patternOptions, visible: this._options.visible, locked: this._options.locked } };
+  }
+
+  override isValid(): boolean {
+    return this._anchors.length >= 3;
+  }
+
+  override paneViews(): IPrimitivePaneView[] {
     return [new ProjectionPaneView(this)];
   }
 
-  /**
-   * Get projection info
-   * Anchors: [0] = A (start of reference move)
-   *          [1] = B (end of reference move)
-   *          [2] = C (projection start point)
-   */
-  getProjectionInfo(): {
-    priceA: number;
-    priceB: number;
-    priceC: number;
-    targetPrice: number;
-    moveSize: number;
-    movePercent: number;
-    isUp: boolean;
-  } {
-    if (!this.isValid()) {
-      return {
-        priceA: 0,
-        priceB: 0,
-        priceC: 0,
-        targetPrice: 0,
-        moveSize: 0,
-        movePercent: 0,
-        isUp: true,
-      };
+  override computeGeometry(): never[] {
+    return [];
+  }
+
+  override autoscaleInfo(): null {
+    return null;
+  }
+
+  sector(viewport: Viewport): Sector | null {
+    if (this._anchors.length < 3) return null;
+    const c = this.anchorToPixel(this._anchors[0], viewport);
+    const p2 = this.anchorToPixel(this._anchors[1], viewport);
+    const q = this.anchorToPixel(this._anchors[2], viewport);
+    if (!c || !p2 || !q) return null;
+    const r = Math.hypot(p2.x - c.x, p2.y - c.y);
+    const a2 = Math.atan2(p2.y - c.y, p2.x - c.x);
+    const a3 = Math.atan2(q.y - c.y, q.x - c.x);
+    const delta = wrapAngle(a3 - a2);
+    return { c, p2, p3: { x: c.x + r * Math.cos(a3), y: c.y + r * Math.sin(a3) }, r, a2, a3, anticlockwise: delta < 0, delta };
+  }
+
+  override getControlPoints(viewport: Viewport): ControlPoint[] {
+    const s = this.sector(viewport);
+    if (!s) return [];
+    const placed = this._placedCount ?? 3;
+    const pts = [s.c, s.p2, s.p3];
+    return pts.slice(0, Math.min(placed, 3)).map((p, index) => ({ index, x: p.x, y: p.y, radius: 6 }));
+  }
+
+  override testHit(point: Point, viewport: Viewport): boolean {
+    const s = this.sector(viewport);
+    if (!s) return false;
+    const dx = point.x - s.c.x;
+    const dy = point.y - s.c.y;
+    if (Math.hypot(dx, dy) > s.r + HIT) return false;
+    const d = wrapAngle(Math.atan2(dy, dx) - s.a2);
+    return s.anticlockwise ? d <= 1e-9 && d >= s.delta - 1e-9 : d >= -1e-9 && d <= s.delta + 1e-9;
+  }
+
+  override clone(newId: string): IDrawing {
+    return new Projection(newId, [...this._anchors], { ...this._style }, { ...this._patternOptions });
+  }
+
+  static create(id: string, anchors: Anchor[], style?: Partial<DrawingStyle>, options?: Partial<ProjectionOptions>): Projection {
+    return new Projection(id, anchors, style, options);
+  }
+
+  paint(scope: BitmapCoordinatesRenderingScope, viewport: Viewport): void {
+    const { context: ctx, horizontalPixelRatio: pr, verticalPixelRatio: vr } = scope;
+    const s = this.sector(viewport);
+    if (!s) return;
+    ctx.save();
+    ctx.scale(pr, vr);
+    ctx.strokeStyle = this._style.lineColor;
+    ctx.lineWidth = this._style.lineWidth;
+    ctx.lineJoin = 'round';
+
+    // Until the second point is placed only a guide line follows the cursor.
+    if (this.placedCount !== null && this.placedCount < 2) {
+      ctx.beginPath();
+      ctx.moveTo(s.c.x, s.c.y);
+      ctx.lineTo(s.p2.x, s.p2.y);
+      ctx.stroke();
+      ctx.restore();
+      return;
     }
 
-    const priceA = this._anchors[0].price;
-    const priceB = this._anchors[1].price;
-    const priceC = this._anchors[2].price;
+    ctx.beginPath();
+    ctx.moveTo(s.c.x, s.c.y);
+    ctx.lineTo(s.p2.x, s.p2.y);
+    ctx.arc(s.c.x, s.c.y, s.r, s.a2, s.a3, s.anticlockwise);
+    ctx.closePath();
+    const gradient = ctx.createLinearGradient(s.c.x - GRADIENT_LEAD, 0, s.c.x + s.r + GRADIENT_TAIL, 0);
+    gradient.addColorStop(0, this._patternOptions.color1);
+    gradient.addColorStop(1, this._patternOptions.color2);
+    ctx.fillStyle = gradient;
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
 
-    // Calculate the move from A to B
-    const moveSize = priceB - priceA;
-    const movePercent = priceA !== 0 ? (moveSize / priceA) * 100 : 0;
+class ProjectionPaneView implements IPrimitivePaneView {
+  private readonly _renderer: ProjectionPaneRenderer;
 
-    // Project the same move from C
-    const targetPrice = priceC + moveSize;
-    const isUp = moveSize >= 0;
-
-    return {
-      priceA,
-      priceB,
-      priceC,
-      targetPrice,
-      moveSize,
-      movePercent,
-      isUp,
-    };
+  constructor(drawing: Projection) {
+    this._renderer = new ProjectionPaneRenderer(drawing);
   }
 
-  computeGeometry(viewport: Viewport): Geometry[] {
-    if (!this.isValid()) return [];
-
-    const pA = this.anchorToPixel(this._anchors[0], viewport);
-    const pB = this.anchorToPixel(this._anchors[1], viewport);
-    const pC = this.anchorToPixel(this._anchors[2], viewport);
-
-    if (!pA || !pB || !pC) return [];
-
-    const geometries: Geometry[] = [];
-
-    // Reference line A-B
-    geometries.push({
-      type: 'line',
-      start: pA,
-      end: pB,
-    } as LineGeometry);
-
-    // Calculate target point D (projection of A-B from C)
-    const dy = pB.y - pA.y;
-    const dx = pB.x - pA.x;
-    const pD: Point = {
-      x: pC.x + dx,
-      y: pC.y + dy,
-    };
-
-    // Projection line C-D
-    geometries.push({
-      type: 'line',
-      start: pC,
-      end: pD,
-    } as LineGeometry);
-
-    // Connecting lines (optional visual aid)
-    geometries.push({
-      type: 'line',
-      start: pA,
-      end: pC,
-    } as LineGeometry);
-
-    geometries.push({
-      type: 'line',
-      start: pB,
-      end: pD,
-    } as LineGeometry);
-
-    // Projection zone rectangle
-    const left = Math.min(pC.x, pD.x);
-    const right = Math.max(pC.x, pD.x);
-    const top = Math.min(pC.y, pD.y);
-    const bottom = Math.max(pC.y, pD.y);
-
-    geometries.push({
-      type: 'rectangle',
-      topLeft: { x: left, y: top },
-      width: right - left,
-      height: bottom - top,
-    } as RectangleGeometry);
-
-    return geometries;
+  zOrder(): 'bottom' | 'normal' | 'top' {
+    return 'normal';
   }
 
-  testHit(point: Point, viewport: Viewport): boolean {
-    if (!this.isValid()) return false;
-
-    const pA = this.anchorToPixel(this._anchors[0], viewport);
-    const pB = this.anchorToPixel(this._anchors[1], viewport);
-    const pC = this.anchorToPixel(this._anchors[2], viewport);
-
-    if (!pA || !pB || !pC) return false;
-
-    const dy = pB.y - pA.y;
-    const dx = pB.x - pA.x;
-    const pD: Point = {
-      x: pC.x + dx,
-      y: pC.y + dy,
-    };
-
-    // Check if near any of the lines
-    if (distanceToLineSegment(point, pA, pB) <= Projection.HIT_THRESHOLD) return true;
-    if (distanceToLineSegment(point, pC, pD) <= Projection.HIT_THRESHOLD) return true;
-    if (distanceToLineSegment(point, pA, pC) <= Projection.HIT_THRESHOLD) return true;
-    if (distanceToLineSegment(point, pB, pD) <= Projection.HIT_THRESHOLD) return true;
-
-    return false;
+  renderer(): IPrimitivePaneRenderer {
+    return this._renderer;
   }
+}
 
-  clone(newId: string): IDrawing {
-    return new Projection(
-      newId,
-      [...this._anchors],
-      { ...this._style },
-      { ...this._projectionOptions }
-    );
-  }
+class ProjectionPaneRenderer implements IPrimitivePaneRenderer {
+  constructor(private readonly _drawing: Projection) {}
 
-  static create(
-    id: string,
-    pointA: Anchor,
-    pointB: Anchor,
-    pointC: Anchor,
-    style?: Partial<DrawingStyle>,
-    options?: Partial<ProjectionOptions>
-  ): Projection {
-    return new Projection(id, [pointA, pointB, pointC], style, options);
+  draw(target: CanvasRenderingTarget2D): void {
+    target.useBitmapCoordinateSpace((scope) => {
+      const drawing = this._drawing;
+      const viewport = drawing.getViewport();
+      if (!viewport || !drawing.options.visible || !drawing.isDisplayed() || !drawing.isValid()) return;
+      drawing.paint(scope, viewport);
+      if (drawing.state === 'selected' || drawing.state === 'editing' || drawing.state === 'hovered') {
+        drawControlPoints(scope.context, drawing.getControlPoints(viewport), null, scope.horizontalPixelRatio, '#2962FF');
+      }
+    });
   }
 }

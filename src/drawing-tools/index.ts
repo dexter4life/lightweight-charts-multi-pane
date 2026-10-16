@@ -316,7 +316,6 @@ export {
   DatePriceRange,
   type DatePriceRangeOptions,
   Projection,
-  ProjectionPaneView,
   type ProjectionOptions,
   Forecast,
   type ForecastOptions,
