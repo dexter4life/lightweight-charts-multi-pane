@@ -2,7 +2,7 @@ import type { IPrimitivePaneView, IPrimitivePaneRenderer } from '../../../model/
 import type { CanvasRenderingTarget2D, BitmapCoordinatesRenderingScope } from 'fancy-canvas';
 
 import type { Comment } from './comment';
-import { drawControlPoints } from '../../rendering/canvas-utils';
+import { COMMENT_GEOMETRY } from './comment';
 
 export class CommentPaneView implements IPrimitivePaneView {
   private _renderer: CommentPaneRenderer;
@@ -12,7 +12,7 @@ export class CommentPaneView implements IPrimitivePaneView {
   }
 
   zOrder(): 'bottom' | 'normal' | 'top' {
-    return 'top';
+    return 'bottom';
   }
 
   renderer(): IPrimitivePaneRenderer {
@@ -21,113 +21,63 @@ export class CommentPaneView implements IPrimitivePaneView {
 }
 
 class CommentPaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: Comment;
-
-  constructor(drawing: Comment) {
-    this._drawing = drawing;
-  }
+  constructor(private _drawing: Comment) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const d = this._drawing;
+    const viewport = d.getViewport();
+    if (!viewport || !d.isValid() || !d.options.visible || !d.isDisplayed()) return;
+    const l = d.layout(viewport);
+    if (!l) return;
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
-
-    const anchor = this._drawing.anchors[0];
-    const p = this._drawing.anchorToPixel(anchor, viewport);
-    if (!p) return;
-
-    const options = this._drawing.commentOptions;
-    const text = options.text ?? '';
-    const fontSize = (options.fontSize ?? 11) * pixelRatio;
-    const bgColor = options.backgroundColor ?? '#2962FF';
-    const textColor = options.textColor ?? '#FFFFFF';
-    const padding = 8 * pixelRatio;
-    const borderRadius = 6 * pixelRatio;
-    const tailSize = 8 * pixelRatio;
-
-    const x = p.x * pixelRatio;
-    const y = p.y * pixelRatio;
+    const g = COMMENT_GEOMETRY;
+    const o = d.commentOptions;
+    const inset = (g.borderWidth * pr) / 2;
+    const L = Math.round(l.box.x * pr) + inset;
+    const T = Math.round(l.box.y * pr) + inset;
+    const R = Math.round((l.box.x + l.box.w) * pr) - inset;
+    const B = Math.round((l.box.y + l.box.h) * pr) - inset;
+    const big = Math.min((B - T) / 2, (R - L) / 2);
+    const small = g.anchorRadius * pr;
 
     ctx.save();
-
-    // Measure text
-    ctx.font = `${fontSize}px sans-serif`;
-    const lines = this.wrapText(ctx, text, 120 * pixelRatio);
-    const lineHeight = fontSize * 1.3;
-    const contentHeight = lines.length * lineHeight;
-    const maxLineWidth = Math.max(...lines.map(l => ctx.measureText(l).width));
-    const boxWidth = maxLineWidth + padding * 2;
-    const boxHeight = contentHeight + padding * 2;
-
-    // Position bubble above anchor
-    const bubbleX = x;
-    const bubbleY = y - tailSize - boxHeight;
-
-    // Draw speech bubble
-    ctx.fillStyle = bgColor;
     ctx.beginPath();
-    ctx.roundRect(bubbleX, bubbleY, boxWidth, boxHeight, borderRadius);
-    ctx.fill();
-
-    // Draw tail (triangle pointing down to anchor)
-    ctx.beginPath();
-    ctx.moveTo(bubbleX + 10 * pixelRatio, bubbleY + boxHeight);
-    ctx.lineTo(x, y);
-    ctx.lineTo(bubbleX + 20 * pixelRatio, bubbleY + boxHeight);
+    ctx.moveTo(L + big, T);
+    ctx.lineTo(R - big, T);
+    ctx.arcTo(R, T, R, T + big, big);
+    ctx.lineTo(R, B - big);
+    ctx.arcTo(R, B, R - big, B, big);
+    ctx.lineTo(L + small, B);
+    ctx.arcTo(L, B, L, B - small, small);
+    ctx.lineTo(L, T + big);
+    ctx.arcTo(L, T, L + big, T, big);
     ctx.closePath();
+    ctx.fillStyle = o.backgroundColor ?? '#2962FF';
     ctx.fill();
+    ctx.strokeStyle = o.borderColor ?? '#2962FF';
+    ctx.lineWidth = g.borderWidth * pr;
+    ctx.stroke();
 
-    // Draw text
-    ctx.fillStyle = textColor;
-    ctx.font = `${fontSize}px sans-serif`;
+    ctx.font = l.font.replace(/(\d+(?:\.\d+)?)px/, (_, n) => `${Number(n) * pr}px`);
+    ctx.fillStyle = o.textColor ?? '#FFFFFF';
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(l.text, (l.box.x + g.padX) * pr, (l.box.y + l.box.h * 0.618) * pr);
 
-    for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(lines[i], bubbleX + padding, bubbleY + padding + i * lineHeight);
+    if (d.state === 'selected' || d.state === 'editing') {
+      ctx.beginPath();
+      ctx.arc(l.anchor.x * pr, l.anchor.y * pr, g.handleRadius * pr, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fill();
+      ctx.lineWidth = 2 * pr;
+      ctx.strokeStyle = '#2962FF';
+      ctx.stroke();
     }
-
     ctx.restore();
-
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
-    }
-  }
-
-  private wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-    const words = text.split(' ');
-    const lines: string[] = [];
-    let currentLine = '';
-
-    for (const word of words) {
-      const testLine = currentLine ? `${currentLine} ${word}` : word;
-      const metrics = ctx.measureText(testLine);
-
-      if (metrics.width > maxWidth && currentLine) {
-        lines.push(currentLine);
-        currentLine = word;
-      } else {
-        currentLine = testLine;
-      }
-    }
-
-    if (currentLine) {
-      lines.push(currentLine);
-    }
-
-    return lines.length > 0 ? lines : [''];
   }
 }
