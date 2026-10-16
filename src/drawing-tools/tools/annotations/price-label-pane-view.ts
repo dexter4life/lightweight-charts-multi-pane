@@ -2,17 +2,18 @@ import type { IPrimitivePaneView, IPrimitivePaneRenderer } from '../../../model/
 import type { CanvasRenderingTarget2D, BitmapCoordinatesRenderingScope } from 'fancy-canvas';
 
 import type { PriceLabel } from './price-label';
-import { drawControlPoints, formatPrice } from '../../rendering/canvas-utils';
+import { PRICE_LABEL_GEOMETRY } from './price-label';
 
 export class PriceLabelPaneView implements IPrimitivePaneView {
   private _renderer: PriceLabelPaneRenderer;
 
-  constructor(drawing: PriceLabel) {
+  constructor(private _drawing: PriceLabel) {
+    const drawing = _drawing;
     this._renderer = new PriceLabelPaneRenderer(drawing);
   }
 
   zOrder(): 'bottom' | 'normal' | 'top' {
-    return 'top';
+    return this._drawing.state === 'selected' || this._drawing.state === 'editing' ? 'top' : 'bottom';
   }
 
   renderer(): IPrimitivePaneRenderer {
@@ -21,102 +22,73 @@ export class PriceLabelPaneView implements IPrimitivePaneView {
 }
 
 class PriceLabelPaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: PriceLabel;
-
-  constructor(drawing: PriceLabel) {
-    this._drawing = drawing;
-  }
+  constructor(private _drawing: PriceLabel) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio, bitmapSize } = scope;
-    const pixelRatio = horizontalPixelRatio;
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const d = this._drawing;
+    const viewport = d.getViewport();
+    if (!viewport || !d.isValid() || !d.options.visible || !d.isDisplayed()) return;
+    const l = d.layout(viewport);
+    if (!l) return;
 
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
-
-    const anchor = this._drawing.anchors[0];
-    const p = this._drawing.anchorToPixel(anchor, viewport);
-    if (!p) return;
-
-    const options = this._drawing.labelOptions;
-    const fontSize = (options.fontSize ?? 11) * pixelRatio;
-    const backgroundColor = options.backgroundColor ?? '#2962FF';
-    const textColor = options.textColor ?? '#FFFFFF';
-    const decimals = options.decimals;
-    const padding = 4 * pixelRatio;
-    const arrowSize = 6 * pixelRatio;
-
-    const x = p.x * pixelRatio;
-    const y = p.y * pixelRatio;
-    const chartWidth = bitmapSize.width;
+    const g = PRICE_LABEL_GEOMETRY;
+    const o = d.priceLabelOptions;
+    const L = Math.round(l.box.x * pr);
+    const T = Math.round(l.box.y * pr);
+    const R = Math.round((l.box.x + l.box.w) * pr);
+    const B = Math.round((l.box.y + l.box.h) * pr);
+    const r = g.radius * pr;
+    const ax = l.anchor.x * pr;
+    const ay = l.anchor.y * pr;
 
     ctx.save();
-
-    // Draw horizontal line from anchor to right edge
-    ctx.strokeStyle = backgroundColor;
-    ctx.lineWidth = 1 * pixelRatio;
-    ctx.setLineDash([4 * pixelRatio, 2 * pixelRatio]);
     ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(chartWidth, y);
+    ctx.moveTo(L + r, T);
+    ctx.lineTo(R - r, T);
+    ctx.arcTo(R, T, R, T + r, r);
+    ctx.lineTo(R, B - r);
+    ctx.arcTo(R, B, R - r, B, r);
+    ctx.lineTo(L + g.tailTo * pr, B);
+    ctx.lineTo(ax, ay);
+    ctx.lineTo(L + g.tailFrom * pr, B);
+    ctx.lineTo(L, B);
+    ctx.lineTo(L, T + r);
+    ctx.arcTo(L, T, L + r, T, r);
+    ctx.closePath();
+    ctx.fillStyle = o.backgroundColor ?? '#2962FF';
+    ctx.fill();
+    ctx.strokeStyle = o.borderColor ?? '#2962FF';
+    ctx.lineWidth = pr;
+    ctx.lineJoin = 'round';
     ctx.stroke();
-    ctx.setLineDash([]);
 
-    // Draw price label on the right
-    const priceText = `$${formatPrice(anchor.price, decimals)}`;
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    const textMetrics = ctx.measureText(priceText);
-    const textWidth = textMetrics.width;
-    const labelWidth = textWidth + padding * 2;
-    const labelHeight = fontSize + padding * 2;
-
-    const labelX = chartWidth - labelWidth - 2 * pixelRatio;
-    const labelY = y - labelHeight / 2;
-
-    // Draw label background with arrow
-    ctx.fillStyle = backgroundColor;
-    ctx.beginPath();
-
-    if (options.showArrow) {
-      // Label with arrow pointing left
-      ctx.moveTo(labelX, labelY);
-      ctx.lineTo(labelX + labelWidth, labelY);
-      ctx.lineTo(labelX + labelWidth, labelY + labelHeight);
-      ctx.lineTo(labelX, labelY + labelHeight);
-      ctx.lineTo(labelX - arrowSize, y);
-      ctx.closePath();
-    } else {
-      ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 2 * pixelRatio);
-    }
-    ctx.fill();
-
-    // Draw text
-    ctx.fillStyle = textColor;
-    ctx.textAlign = 'center';
+    ctx.font = l.font.replace(/(\d+(?:\.\d+)?)px/, (_, n) => `${Number(n) * pr}px`);
+    ctx.fillStyle = o.textColor ?? '#FFFFFF';
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(priceText, labelX + labelWidth / 2, y);
-
-    // Draw anchor marker
-    ctx.fillStyle = backgroundColor;
-    ctx.beginPath();
-    ctx.arc(x, y, 4 * pixelRatio, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
+    const spacing = l.tracking * pr;
+    const gap = Math.max(0, l.text.length - 1) * spacing;
+    let x = (L + R) / 2 - (ctx.measureText(l.text).width + gap) / 2;
+    const y = (T + B) / 2 + pr * 0.5;
+    for (const ch of l.text) {
+      ctx.fillText(ch, x, y);
+      x += ctx.measureText(ch).width + spacing;
     }
+
+    if (d.state === 'selected' || d.state === 'editing') {
+      ctx.beginPath();
+      ctx.arc(ax, ay, g.handleRadius * pr, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fill();
+      ctx.lineWidth = 2 * pr;
+      ctx.strokeStyle = '#2962FF';
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }
