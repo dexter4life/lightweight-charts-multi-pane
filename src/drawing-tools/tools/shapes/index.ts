@@ -13,9 +13,6 @@ export { ShapePaneView } from './shape-pane-view';
 // Triangle
 export { Triangle, type TriangleOptions } from './triangle';
 
-// PriceRange
-export { PriceRange, type PriceRangeOptions } from './price-range';
-export { PriceRangePaneView } from './price-range-pane-view';
 
 // Ellipse
 export { Ellipse, type EllipseOptions } from './ellipse';

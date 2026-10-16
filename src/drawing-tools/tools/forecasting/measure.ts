@@ -41,6 +41,50 @@ export function formatVolume(value: number): string {
   return String(+value.toFixed(3));
 }
 
+/** Price, time and volume summary between two anchors; shared by the Measure and the range tools. */
+export function computeMeasureInfo(
+  series: ISeriesApi<SeriesType>,
+  volumeSeries: ISeriesApi<SeriesType> | null,
+  a: Anchor,
+  b: Anchor
+): MeasureInfo {
+  const priceChange = b.price - a.price;
+  const percent = a.price !== 0 ? (priceChange / a.price) * 100 : 0;
+  const minMove = (series.options() as { priceFormat?: { minMove?: number } }).priceFormat?.minMove;
+  const tick = minMove && minMove > 0 ? minMove : 0.01;
+
+  const bars = resolveSeriesBars(series.data() as unknown as readonly SeriesDatumLike[]);
+  const i1 = findNearestBarIndex(bars, a.time);
+  const i2 = findNearestBarIndex(bars, b.time);
+  let volume: number | null = null;
+  if (i1 >= 0 && i2 >= 0) {
+    const lo = Math.min(i1, i2);
+    const hi = Math.max(i1, i2);
+    if (bars.some((bar) => bar.hasExplicitVolume)) {
+      volume = 0;
+      for (let i = lo; i <= hi; i += 1) volume += bars[i].volume;
+    } else if (volumeSeries) {
+      const from = timeToKey(bars[lo].time);
+      const to = timeToKey(bars[hi].time);
+      volume = 0;
+      for (const item of volumeSeries.data() as ReadonlyArray<{ time: Time; value?: number }>) {
+        const key = timeToKey(item.time);
+        if (key >= from && key <= to) volume += item.value ?? 0;
+      }
+    }
+  }
+
+  return {
+    priceChange,
+    percent,
+    ticks: Math.round(priceChange / tick),
+    bars: Math.abs(i2 - i1),
+    duration: formatDuration(timeToKey(b.time) - timeToKey(a.time)),
+    volume,
+    up: priceChange >= 0,
+  };
+}
+
 /**
  * Measure - the transient ruler of TradingView's left toolbar.
  *
@@ -102,42 +146,7 @@ export class Measure extends Drawing {
 
   getInfo(): MeasureInfo | null {
     if (!this.isValid() || !this._series) return null;
-    const [a, b] = this._anchors;
-    const priceChange = b.price - a.price;
-    const percent = a.price !== 0 ? (priceChange / a.price) * 100 : 0;
-    const minMove = (this._series.options() as { priceFormat?: { minMove?: number } }).priceFormat?.minMove;
-    const tick = minMove && minMove > 0 ? minMove : 0.01;
-
-    const bars = resolveSeriesBars(this._series.data() as unknown as readonly SeriesDatumLike[]);
-    const i1 = findNearestBarIndex(bars, a.time);
-    const i2 = findNearestBarIndex(bars, b.time);
-    let volume: number | null = null;
-    if (i1 >= 0 && i2 >= 0) {
-      const lo = Math.min(i1, i2);
-      const hi = Math.max(i1, i2);
-      if (bars.some((bar) => bar.hasExplicitVolume)) {
-        volume = 0;
-        for (let i = lo; i <= hi; i += 1) volume += bars[i].volume;
-      } else if (this._volumeSeries) {
-        const from = timeToKey(bars[lo].time);
-        const to = timeToKey(bars[hi].time);
-        volume = 0;
-        for (const item of this._volumeSeries.data() as ReadonlyArray<{ time: Time; value?: number }>) {
-          const key = timeToKey(item.time);
-          if (key >= from && key <= to) volume += item.value ?? 0;
-        }
-      }
-    }
-
-    return {
-      priceChange,
-      percent,
-      ticks: Math.round(priceChange / tick),
-      bars: Math.abs(i2 - i1),
-      duration: formatDuration(timeToKey(b.time) - timeToKey(a.time)),
-      volume,
-      up: priceChange >= 0,
-    };
+    return computeMeasureInfo(this._series, this._volumeSeries, this._anchors[0], this._anchors[1]);
   }
 
   /** Text lines of the summary label. */

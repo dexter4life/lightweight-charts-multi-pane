@@ -15,7 +15,7 @@ import { HorizontalRay } from '../tools/lines/horizontal-ray';
 import { Rectangle } from '../tools/shapes/rectangle';
 import { Circle } from '../tools/shapes/circle';
 import { Triangle } from '../tools/shapes/triangle';
-import { PriceRange } from '../tools/shapes/price-range';
+import { PriceRange } from '../tools/forecasting/price-range';
 
 import { ParallelChannel } from '../tools/channels/parallel-channel';
 import { RegressionTrend } from '../tools/channels/regression-trend';
@@ -190,7 +190,7 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
   {
     type: 'price-range',
     name: 'Price Range',
-    category: 'shape',
+    category: 'measurement',
     requiredAnchors: 2,
     factory: (id, anchors, style, options) => new PriceRange(id, anchors, style, options),
   },

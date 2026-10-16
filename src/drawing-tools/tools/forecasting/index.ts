@@ -8,7 +8,8 @@ export { ShortPosition, type ShortPositionOptions } from './short-position';
 
 // DateRange
 export { DateRange, type DateRangeOptions } from './date-range';
-export { DateRangePaneView } from './date-range-pane-view';
+export { PriceRange, type PriceRangeOptions } from './price-range';
+export { RangeDrawing, type RangeOptions, type RangeCustomText } from './range-drawing';
 
 // Measure
 export { Measure, formatVolume, type MeasureInfo } from './measure';
@@ -16,7 +17,6 @@ export { MeasurePaneView } from './measure-pane-view';
 
 // DatePriceRange
 export { DatePriceRange, type DatePriceRangeOptions } from './date-price-range';
-export { DatePriceRangePaneView } from './date-price-range-pane-view';
 
 // Projection
 export { Projection, type ProjectionOptions } from './projection';
