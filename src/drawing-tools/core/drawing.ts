@@ -11,6 +11,7 @@ import type { AutoscaleInfo, SeriesType } from '../../model/series-options';
 
 import { DrawingAxisViews } from './axis-views';
 import { createFractionalMapper } from './fractional-logical';
+import { createTimeMapper } from './time-mapper';
 import type { Geometry } from './geometry';
 import type {
   Anchor,
@@ -407,13 +408,15 @@ export abstract class Drawing implements IDrawing {
     const timeScale = this._chart.timeScale();
     const height = this._series.getPane().getHeight() || (this._container?.clientHeight ?? 400);
     let mapper: ReturnType<typeof createFractionalMapper> | undefined;
+    const seriesTimes = () => this._series!.data().map((d) => d.time as number);
+    const timeFallback = createTimeMapper(timeScale, seriesTimes);
 
     return {
       width: timeScale.width(),
       height,
       timeScale: {
         coordinateToTime: (x: number) => timeScale.coordinateToTime(x),
-        timeToCoordinate: (time: Time) => timeScale.timeToCoordinate(time),
+        timeToCoordinate: (time: Time) => timeScale.timeToCoordinate(time) ?? (timeFallback(time) as never),
         logicalToCoordinate: (logical) => {
           if (Number.isInteger(logical)) return timeScale.logicalToCoordinate(logical);
           mapper ??= createFractionalMapper(timeScale);

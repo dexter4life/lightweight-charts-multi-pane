@@ -38,6 +38,8 @@ export {
   DEFAULT_DRAWING_STYLE,
 } from './core';
 
+export { timeToFractionalLogical } from './core/time-mapper';
+
 // ============ Geometry ============
 export {
   // Types

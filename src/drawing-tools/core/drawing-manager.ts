@@ -4,6 +4,7 @@ import type { ISeriesApi } from '../../api/iseries-api';
 import type { SeriesType } from '../../model/series-options';
 
 import { createFractionalMapper } from './fractional-logical';
+import { createTimeMapper } from './time-mapper';
 
 import type {
   Anchor,
@@ -446,13 +447,14 @@ export class DrawingManager {
     const timeScale = this._chart.timeScale();
     // Get container height as fallback
     const height = this._container?.clientHeight ?? 400;
+    const timeFallback = createTimeMapper(timeScale, () => this._series!.data().map((d) => d.time as number));
 
     return {
       width: timeScale.width(),
       height,
       timeScale: {
         coordinateToTime: (x: number) => timeScale.coordinateToTime(x),
-        timeToCoordinate: (time) => timeScale.timeToCoordinate(time),
+        timeToCoordinate: (time) => timeScale.timeToCoordinate(time) ?? (timeFallback(time) as never),
         logicalToCoordinate: (logical) => timeScale.logicalToCoordinate(logical),
       },
       priceScale: {
