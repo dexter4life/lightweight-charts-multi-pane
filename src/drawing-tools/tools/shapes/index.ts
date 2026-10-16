@@ -31,7 +31,6 @@ export { Polyline, type PolylineOptions } from './polyline';
 
 // Curve
 export { Curve, type CurveOptions } from './curve';
-export { CurvePaneView } from './curve-pane-view';
 
 // Double Curve
 export { DoubleCurve, type DoubleCurveOptions } from './double-curve';

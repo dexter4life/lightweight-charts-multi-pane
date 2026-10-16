@@ -500,7 +500,7 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
     type: 'curve',
     name: 'Curve',
     category: 'shape',
-    requiredAnchors: 4,
+    requiredAnchors: 2,
     factory: (id, anchors, style, options) => new Curve(id, anchors, style, options),
   },
   {

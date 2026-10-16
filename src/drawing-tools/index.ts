@@ -151,7 +151,6 @@ export {
   Polyline,
   type PolylineOptions,
   Curve,
-  CurvePaneView,
   type CurveOptions,
   DoubleCurve,
   DoubleCurvePaneView,
