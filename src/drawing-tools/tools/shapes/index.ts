@@ -28,7 +28,6 @@ export { Path, type PathOptions } from './path';
 
 // Polyline
 export { Polyline, type PolylineOptions } from './polyline';
-export { PolylinePaneView } from './polyline-pane-view';
 
 // Curve
 export { Curve, type CurveOptions } from './curve';

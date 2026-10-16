@@ -149,7 +149,6 @@ export {
   Path,
   type PathOptions,
   Polyline,
-  PolylinePaneView,
   type PolylineOptions,
   Curve,
   CurvePaneView,

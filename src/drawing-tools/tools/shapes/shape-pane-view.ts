@@ -55,8 +55,8 @@ class ShapePaneRenderer implements IPrimitivePaneRenderer {
       return;
     }
     const o = drawing.shapeOptions;
-    if (o.filled && drawing.style.fillColor) {
-      ctx.fillStyle = drawing.style.fillColor;
+    if (drawing.hasFill()) {
+      ctx.fillStyle = drawing.style.fillColor!;
       ctx.beginPath();
       if (drawing.traceFillPath(ctx, pr, viewport)) ctx.fill();
       else {

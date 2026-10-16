@@ -19,6 +19,8 @@ export interface ShapeOptions extends DrawingOptions {
   /** Arrow caps for open paths. */
   leftEnd?: 'normal' | 'arrow';
   rightEnd?: 'normal' | 'arrow';
+  /** Open paths that were finished on their first point. */
+  closed?: boolean;
 }
 
 export const DEFAULT_SHAPE_OPTIONS = {
@@ -91,6 +93,11 @@ export abstract class ShapeBase extends Drawing {
    */
   traceFillPath(_ctx: CanvasRenderingContext2D, _pr: number, _viewport: Viewport): boolean {
     return false;
+  }
+
+  /** Whether the background is drawn at all. */
+  hasFill(): boolean {
+    return !!this._shapeOptions.filled && !!this._style.fillColor;
   }
 
   /** Extra drawing after the outline is stroked (e.g. arrow caps). */
