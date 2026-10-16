@@ -1,8 +1,7 @@
 import type { IPrimitivePaneView, IPrimitivePaneRenderer } from '../../../model/ipane-primitive';
 import type { CanvasRenderingTarget2D, BitmapCoordinatesRenderingScope } from 'fancy-canvas';
 
-import type { Note } from './note';
-import { drawControlPoints } from '../../rendering/canvas-utils';
+import { NOTE_GEOMETRY, type Note } from './note';
 
 export class NotePaneView implements IPrimitivePaneView {
   private _renderer: NotePaneRenderer;
@@ -12,7 +11,7 @@ export class NotePaneView implements IPrimitivePaneView {
   }
 
   zOrder(): 'bottom' | 'normal' | 'top' {
-    return 'top';
+    return 'normal';
   }
 
   renderer(): IPrimitivePaneRenderer {
@@ -21,151 +20,101 @@ export class NotePaneView implements IPrimitivePaneView {
 }
 
 class NotePaneRenderer implements IPrimitivePaneRenderer {
-  private _drawing: Note;
-
-  constructor(drawing: Note) {
-    this._drawing = drawing;
-  }
+  constructor(private _drawing: Note) {}
 
   draw(target: CanvasRenderingTarget2D): void {
-    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => {
-      this.drawImpl(scope);
-    });
+    target.useBitmapCoordinateSpace((scope: BitmapCoordinatesRenderingScope) => this.drawImpl(scope));
   }
 
   private drawImpl(scope: BitmapCoordinatesRenderingScope): void {
-    const { context: ctx, horizontalPixelRatio } = scope;
-    const pixelRatio = horizontalPixelRatio;
-
-    const viewport = this._drawing.getViewport();
-    if (!viewport) return;
-    if (!this._drawing.options.visible) return;
-    if (!this._drawing.isValid()) return;
-
-    const anchor = this._drawing.anchors[0];
-    const p = this._drawing.anchorToPixel(anchor, viewport);
+    const { context: ctx, horizontalPixelRatio: pr } = scope;
+    const d = this._drawing;
+    const viewport = d.getViewport();
+    if (!viewport || !d.isValid() || !d.options.visible || !d.isDisplayed()) return;
+    const p = d.pinPoint(viewport);
     if (!p) return;
 
-    const options = this._drawing.noteOptions;
-    const text = options.text ?? '';
-    const fontSize = (options.fontSize ?? 11) * pixelRatio;
-    const backgroundColor = options.backgroundColor ?? '#FFEB3B';
-    const iconColor = options.iconColor ?? '#000000';
-    const width = (options.width ?? 120) * pixelRatio;
-    const padding = 8 * pixelRatio;
-    const iconSize = 16 * pixelRatio;
-
-    const x = p.x * pixelRatio;
-    const y = p.y * pixelRatio;
-
+    const g = NOTE_GEOMETRY;
     ctx.save();
 
-    // Calculate text wrapping
-    ctx.font = `${fontSize}px sans-serif`;
-    const lines = this.wrapText(ctx, text, width - padding * 2 - (options.showIcon ? iconSize + padding : 0));
-    const lineHeight = fontSize * 1.3;
-    const contentHeight = Math.max(lines.length * lineHeight, iconSize);
-    const totalHeight = contentHeight + padding * 2;
+    if (d.expanded) this.drawBox(ctx, pr, p.x, p.y);
 
-    // Draw note background with folded corner effect
-    ctx.fillStyle = backgroundColor;
+    // Pin: a circle joined to its tip by two tangent lines.
+    const cx = p.x * pr;
+    const cy = (p.y - g.pinCenter) * pr;
+    const r = g.pinRadius * pr;
+    const dist = (g.pinCenter - g.pinTip) * pr;
+    const alpha = Math.acos(r / dist);
     ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + width - 10 * pixelRatio, y);
-    ctx.lineTo(x + width, y + 10 * pixelRatio);
-    ctx.lineTo(x + width, y + totalHeight);
-    ctx.lineTo(x, y + totalHeight);
+    ctx.moveTo(cx, cy + dist);
+    ctx.lineTo(cx + r * Math.sin(alpha), cy + r * Math.cos(alpha));
+    ctx.arc(cx, cy, r, Math.PI / 2 - alpha, Math.PI / 2 + alpha, true);
     ctx.closePath();
+    ctx.fillStyle = d.style.lineColor;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 7.4 * pr, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFFFFF';
     ctx.fill();
 
-    // Draw folded corner
-    ctx.fillStyle = this.darkenColor(backgroundColor, 0.2);
-    ctx.beginPath();
-    ctx.moveTo(x + width - 10 * pixelRatio, y);
-    ctx.lineTo(x + width - 10 * pixelRatio, y + 10 * pixelRatio);
-    ctx.lineTo(x + width, y + 10 * pixelRatio);
-    ctx.closePath();
-    ctx.fill();
+    if (d.state === 'selected' || d.state === 'editing') {
+      const hx = p.x * pr;
+      const hy = p.y * pr;
+      ctx.beginPath();
+      ctx.arc(hx, hy, 3.5 * pr, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fill();
+      ctx.lineWidth = pr;
+      ctx.strokeStyle = '#2962FF';
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(hx, hy, 4.5 * pr, 0, Math.PI * 2);
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
-    // Draw border
-    ctx.strokeStyle = this.darkenColor(backgroundColor, 0.3);
-    ctx.lineWidth = 1 * pixelRatio;
+  private drawBox(ctx: CanvasRenderingContext2D, pr: number, px: number, py: number): void {
+    const d = this._drawing;
+    const o = d.noteOptions;
+    const g = NOTE_GEOMETRY;
+    const box = d.layout();
+    const x = (px - box.width / 2) * pr;
+    const y = (py - g.boxBottom - box.height) * pr;
+    const w = box.width * pr;
+    const h = box.height * pr;
+    const tipX = px * pr;
+    const half = g.tail.halfWidth * pr;
+    const tail = g.tail.height * pr;
+
+    // Box and tail form one outline; the 1px border is kept crisp on device pixels.
+    const L = Math.round(x);
+    const T = Math.round(y);
+    const R = L + Math.round(w);
+    const B = T + Math.round(h);
+    const tx = Math.round(tipX);
     ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + width - 10 * pixelRatio, y);
-    ctx.lineTo(x + width, y + 10 * pixelRatio);
-    ctx.lineTo(x + width, y + totalHeight);
-    ctx.lineTo(x, y + totalHeight);
+    ctx.moveTo(L + 0.5, T + 0.5);
+    ctx.lineTo(R + 0.5, T + 0.5);
+    ctx.lineTo(R + 0.5, B + 0.5);
+    ctx.lineTo(tx + half + 0.5, B + 0.5);
+    ctx.lineTo(tx + 0.5, B + tail + 0.5);
+    ctx.lineTo(tx - half + 0.5, B + 0.5);
+    ctx.lineTo(L + 0.5, B + 0.5);
     ctx.closePath();
+    ctx.fillStyle = o.backgroundColor ?? '';
+    ctx.fill();
+    ctx.strokeStyle = o.borderColor ?? '';
+    ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Draw icon if enabled
-    let textX = x + padding;
-    if (options.showIcon) {
-      ctx.fillStyle = iconColor;
-      ctx.font = `bold ${iconSize}px sans-serif`;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillText('📝', x + padding, y + padding);
-      textX = x + padding + iconSize + padding / 2;
-    }
-
-    // Draw text
-    ctx.fillStyle = iconColor;
-    ctx.font = `${fontSize}px sans-serif`;
+    ctx.font = box.font.replace(/(\d+(?:\.\d+)?)px/, (_, n) => `${Number(n) * pr}px`);
+    ctx.fillStyle = o.textColor ?? '#FFFFFF';
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-
-    for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(lines[i], textX, y + padding + i * lineHeight);
-    }
-
-    ctx.restore();
-
-    // Draw control points if selected
-    const state = this._drawing.state;
-    if (state === 'selected' || state === 'editing') {
-      const controlPoints = this._drawing.getControlPoints(viewport);
-      drawControlPoints(ctx, controlPoints, null, pixelRatio);
-    }
-  }
-
-  private wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-    const words = text.split(' ');
-    const lines: string[] = [];
-    let currentLine = '';
-
-    for (const word of words) {
-      const testLine = currentLine ? `${currentLine} ${word}` : word;
-      const metrics = ctx.measureText(testLine);
-
-      if (metrics.width > maxWidth && currentLine) {
-        lines.push(currentLine);
-        currentLine = word;
-      } else {
-        currentLine = testLine;
-      }
-    }
-
-    if (currentLine) {
-      lines.push(currentLine);
-    }
-
-    return lines.length > 0 ? lines : [''];
-  }
-
-  private darkenColor(hex: string, amount: number): string {
-    // Convert hex to RGB
-    let r = parseInt(hex.slice(1, 3), 16);
-    let g = parseInt(hex.slice(3, 5), 16);
-    let b = parseInt(hex.slice(5, 7), 16);
-
-    // Darken
-    r = Math.floor(r * (1 - amount));
-    g = Math.floor(g * (1 - amount));
-    b = Math.floor(b * (1 - amount));
-
-    // Convert back to hex
-    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    ctx.textBaseline = 'middle';
+    box.lines.forEach((line, i) => {
+      ctx.fillText(line, x + g.padX * pr, y + (g.padY + g.textDy + box.lineHeight * (i + 0.5)) * pr);
+    });
   }
 }

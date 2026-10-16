@@ -28,7 +28,6 @@ export { ArrowMarkDownPaneView } from './arrow-mark-down-pane-view';
 
 // AnchoredText
 export { AnchoredText, type AnchoredTextOptions } from './anchored-text';
-export { AnchoredTextPaneView } from './anchored-text-pane-view';
 
 // Note
 export { Note, type NoteOptions } from './note';
@@ -48,7 +47,6 @@ export { FlagMarkPaneView } from './flag-mark-pane-view';
 
 // Pin
 export { Pin, type PinOptions } from './pin';
-export { PinPaneView } from './pin-pane-view';
 
 // Comment
 export { Comment, type CommentOptions } from './comment';

@@ -51,13 +51,13 @@ function measurer(): CanvasRenderingContext2D | null {
  * dragging it translates the text (the box does not jump to the pointer).
  */
 export class TextAnnotation extends Drawing {
-  readonly type = 'text-annotation';
+  readonly type: string = 'text-annotation';
 
   protected static readonly REQUIRED_ANCHORS = 1;
 
-  private _textOptions: TextAnnotationOptions;
+  protected _textOptions: TextAnnotationOptions;
   private _interval: { unit: IntervalUnit; multiplier: number } | null = null;
-  private _grab: Point | null = null;
+  protected _grab: Point | null = null;
 
   constructor(
     id: string,

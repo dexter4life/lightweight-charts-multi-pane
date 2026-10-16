@@ -516,7 +516,7 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
     type: 'anchored-text',
     name: 'Anchored Text',
     category: 'annotation',
-    requiredAnchors: 2,
+    requiredAnchors: 1,
     factory: (id, anchors, style, options) => new AnchoredText(id, anchors, style, options),
   },
   {

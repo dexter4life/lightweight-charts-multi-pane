@@ -1,151 +1,78 @@
-import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
+import type { Anchor, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
+import { TextAnnotation, type TextAnnotationOptions } from './text-annotation';
 
-import { Drawing } from '../../core/drawing';
-import type { Anchor, Point, Viewport, DrawingStyle, DrawingOptions, IDrawing } from '../../core/types';
-import type { Geometry, TextGeometry } from '../../core/geometry';
-import { AnchoredTextPaneView } from './anchored-text-pane-view';
+export type AnchoredTextOptions = TextAnnotationOptions;
 
 /**
- * Anchored Text options
+ * Anchored Text - a text label fixed to a spot of the pane rather than to a price and time, so it stays
+ * put while the chart is scrolled or zoomed. The spot is kept as a fraction of the pane size.
  */
-export interface AnchoredTextOptions extends DrawingOptions {
-  text?: string;
-  fontSize?: number;
-  fontFamily?: string;
-  fontWeight?: string;
-  textAlign?: CanvasTextAlign;
-  showConnector?: boolean;
-  connectorLength?: number;
-}
+export class AnchoredText extends TextAnnotation {
+  override readonly type: string = 'anchored-text';
 
-/**
- * Anchored Text - Text anchored to a specific point with a connector line.
- *
- * Features:
- * - Two anchor points: anchor position and text position
- * - Connector line between anchor and text
- * - Customizable text styling
- */
-export class AnchoredText extends Drawing {
-  readonly type = 'anchored-text';
+  private _rel: { fx: number; fy: number } | null = null;
 
-  protected static readonly REQUIRED_ANCHORS = 2;
-  protected static readonly HIT_THRESHOLD = 10;
-
-  private _textOptions: AnchoredTextOptions;
-
-  constructor(
-    id: string,
-    anchors: Anchor[] = [],
-    style: Partial<DrawingStyle> = {},
-    options: Partial<AnchoredTextOptions> = {}
-  ) {
-    const { text, fontSize, fontFamily, fontWeight, textAlign, showConnector, connectorLength, ...baseOptions } = options;
-    super(id, anchors, style, baseOptions);
-
-    this._textOptions = {
-      ...this._options,
-      text: text ?? 'Anchored Text',
-      fontSize: fontSize ?? 12,
-      fontFamily: fontFamily ?? 'sans-serif',
-      fontWeight: fontWeight ?? 'normal',
-      textAlign: textAlign ?? 'left',
-      showConnector: showConnector ?? true,
-      connectorLength: connectorLength ?? 30,
-    };
+  constructor(id: string, anchors: Anchor[] = [], style: Partial<DrawingStyle> = {}, options: Partial<AnchoredTextOptions> = {}) {
+    super(id, anchors, style, options);
+    const rel = (options as { relative?: { fx: number; fy: number } }).relative;
+    if (rel) this._rel = { ...rel };
   }
 
-  get textOptions(): AnchoredTextOptions {
-    return this._textOptions;
+  get relative(): { fx: number; fy: number } | null {
+    return this._rel;
   }
 
-  setTextOptions(options: Partial<AnchoredTextOptions>): void {
-    this._textOptions = { ...this._textOptions, ...options };
-    this.requestUpdate();
-  }
-
-  setText(text: string): void {
-    this._textOptions.text = text;
-    this.requestUpdate();
-  }
-
-  getText(): string {
-    return this._textOptions.text ?? '';
-  }
-
-  isValid(): boolean {
-    return this._anchors.length >= AnchoredText.REQUIRED_ANCHORS;
-  }
-
-  paneViews(): IPrimitivePaneView[] {
-    return [new AnchoredTextPaneView(this)];
-  }
-
-  computeGeometry(viewport: Viewport): Geometry[] {
-    if (!this.isValid()) return [];
-
-    const textPos = this.anchorToPixel(this._anchors[1], viewport);
-    if (!textPos) return [];
-
-    const textGeometry: TextGeometry = {
-      type: 'text',
-      position: textPos,
-      text: this._textOptions.text ?? '',
-      font: `${this._textOptions.fontWeight} ${this._textOptions.fontSize}px ${this._textOptions.fontFamily}`,
-      color: this._style.labelColor,
-      align: this._textOptions.textAlign,
-      baseline: 'middle',
-    };
-
-    return [textGeometry];
-  }
-
-  testHit(point: Point, viewport: Viewport): boolean {
-    if (!this.isValid()) return false;
-
-    // Check if near anchor point
-    const anchorPos = this.anchorToPixel(this._anchors[0], viewport);
-    if (anchorPos) {
-      const dx = point.x - anchorPos.x;
-      const dy = point.y - anchorPos.y;
-      if (Math.sqrt(dx * dx + dy * dy) <= AnchoredText.HIT_THRESHOLD) {
-        return true;
-      }
+  override boxOrigin(viewport: Viewport): Point | null {
+    if (!this._rel) {
+      const p = super.boxOrigin(viewport);
+      if (!p) return null;
+      this._rel = { fx: p.x / viewport.width, fy: p.y / viewport.height };
     }
-
-    // Check if near text box
-    const textPos = this.anchorToPixel(this._anchors[1], viewport);
-    if (!textPos) return false;
-
-    const estimatedWidth = (this._textOptions.text?.length ?? 0) * (this._textOptions.fontSize ?? 12) * 0.6;
-    const estimatedHeight = (this._textOptions.fontSize ?? 12) * 1.5;
-    const padding = 6;
-
-    return (
-      point.x >= textPos.x - padding &&
-      point.x <= textPos.x + estimatedWidth + padding &&
-      point.y >= textPos.y - estimatedHeight / 2 - padding &&
-      point.y <= textPos.y + estimatedHeight / 2 + padding
-    );
+    return { x: this._rel.fx * viewport.width, y: this._rel.fy * viewport.height };
   }
 
-  clone(newId: string): IDrawing {
-    return new AnchoredText(
-      newId,
-      [...this._anchors],
-      { ...this._style },
-      { ...this._textOptions }
-    );
+  /** The handle moves the text by the pointer delta, in pane pixels. */
+  override updateAnchor(index: number, anchor: Anchor): void {
+    const viewport = this.getViewport();
+    if (!viewport || index !== 0) return super.updateAnchor(index, anchor);
+    const pointer = this.anchorToPixel(anchor, viewport);
+    const cp = this.getControlPoints(viewport)[0];
+    if (!pointer || !cp) return super.updateAnchor(index, anchor);
+    if (!this._grab) this._grab = { x: 0, y: 0 };
+    const box = this.layout();
+    const x = pointer.x - this._grab.x - box.width / 2;
+    const y = pointer.y - this._grab.y - box.height + 1;
+    this._rel = { fx: x / viewport.width, fy: y / viewport.height };
+    this.requestUpdate();
   }
 
-  static create(
-    id: string,
-    anchorPoint: Anchor,
-    textPoint: Anchor,
-    text: string,
-    style?: Partial<DrawingStyle>,
-    options?: Partial<AnchoredTextOptions>
-  ): AnchoredText {
-    return new AnchoredText(id, [anchorPoint, textPoint], style, { ...options, text });
+  override bodyDragOrigin(viewport: Viewport): Point[] | null {
+    const o = this.boxOrigin(viewport);
+    return o ? [o] : null;
+  }
+
+  override bodyDragAnchors(origin: Point[], dx: number, dy: number, viewport: Viewport): Anchor[] | null {
+    const o = origin[0];
+    this._rel = { fx: (o.x + dx) / viewport.width, fy: (o.y + dy) / viewport.height };
+    return [...this._anchors];
+  }
+
+  override toJSON() {
+    const json = super.toJSON();
+    return { ...json, options: { ...json.options, relative: this._rel ?? undefined } };
+  }
+
+  override fromJSON(data: any): void {
+    super.fromJSON(data);
+    const rel = data?.options?.relative;
+    this._rel = rel ? { ...rel } : null;
+  }
+
+  override clone(newId: string): IDrawing {
+    return new AnchoredText(newId, [...this._anchors], { ...this._style }, { ...this._textOptions, relative: this._rel ?? undefined } as Partial<AnchoredTextOptions>);
+  }
+
+  static override create(id: string, position: Anchor, text: string, style?: Partial<DrawingStyle>, options?: Partial<AnchoredTextOptions>): AnchoredText {
+    return new AnchoredText(id, [position], style, { ...options, text });
   }
 }
