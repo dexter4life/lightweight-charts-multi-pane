@@ -165,6 +165,8 @@ const TOOL_COLORS: Record<string, string> = {
   "highlighter": "#FFEB3B",
   "arrow-marker": "#2196F3",
   "arrow-mark-up": "#26A69A",
+  "arrow-mark-left": "#2962FF",
+  "arrow-mark-right": "#2962FF",
   "arrow-mark-down": "#EF5350",
   "ellipse": "#E91E63",
   "arc": "#9C27B0",

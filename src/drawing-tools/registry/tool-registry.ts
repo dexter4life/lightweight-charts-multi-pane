@@ -60,8 +60,7 @@ import { Callout } from '../tools/annotations/callout';
 import { Brush } from '../tools/annotations/brush';
 import { Highlighter } from '../tools/annotations/highlighter';
 import { ArrowMarker } from '../tools/annotations/arrow-marker';
-import { ArrowMarkUp } from '../tools/annotations/arrow-mark-up';
-import { ArrowMarkDown } from '../tools/annotations/arrow-mark-down';
+import { ArrowMarkUp, ArrowMarkDown, ArrowMarkLeft, ArrowMarkRight } from '../tools/annotations/arrow-mark';
 import { AnchoredText } from '../tools/annotations/anchored-text';
 import { Note } from '../tools/annotations/note';
 import { PriceNote } from '../tools/annotations/price-note';
@@ -458,6 +457,20 @@ const TOOL_DEFINITIONS: ToolRegistryEntry[] = [
     category: 'annotation',
     requiredAnchors: 1,
     factory: (id, anchors, style, options) => new ArrowMarkDown(id, anchors, style, options),
+  },
+  {
+    type: 'arrow-mark-left',
+    name: 'Arrow Mark Left',
+    category: 'annotation',
+    requiredAnchors: 1,
+    factory: (id, anchors, style, options) => new ArrowMarkLeft(id, anchors, style, options),
+  },
+  {
+    type: 'arrow-mark-right',
+    name: 'Arrow Mark Right',
+    category: 'annotation',
+    requiredAnchors: 1,
+    factory: (id, anchors, style, options) => new ArrowMarkRight(id, anchors, style, options),
   },
 
   // Additional Shape Tools

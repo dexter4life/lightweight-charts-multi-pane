@@ -18,13 +18,9 @@ export { HighlighterPaneView } from './highlighter-pane-view';
 export { ArrowMarker, ARROW_MARKER_FONT, ARROW_MARKER_GEOMETRY, type ArrowMarkerOptions, type ArrowDirection } from './arrow-marker';
 export { ArrowMarkerPaneView } from './arrow-marker-pane-view';
 
-// ArrowMarkUp
-export { ArrowMarkUp, type ArrowMarkUpOptions } from './arrow-mark-up';
-export { ArrowMarkUpPaneView } from './arrow-mark-up-pane-view';
-
-// ArrowMarkDown
-export { ArrowMarkDown, type ArrowMarkDownOptions } from './arrow-mark-down';
-export { ArrowMarkDownPaneView } from './arrow-mark-down-pane-view';
+// Arrow marks
+export { ArrowMark, ArrowMarkUp, ArrowMarkDown, ArrowMarkLeft, ArrowMarkRight, ARROW_MARK_FONT, ARROW_MARK_GEOMETRY, ARROW_MARK_DEFAULT_COLORS, type ArrowMarkOptions, type ArrowMarkDirection } from './arrow-mark';
+export { ArrowMarkPaneView } from './arrow-mark-pane-view';
 
 // AnchoredText
 export { AnchoredText, type AnchoredTextOptions } from './anchored-text';
