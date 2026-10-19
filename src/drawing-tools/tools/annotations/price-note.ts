@@ -1,3 +1,4 @@
+import { defaultFontFamily } from '../../../helpers/make-font';
 import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
 
 import { Drawing } from '../../core/drawing';
@@ -6,7 +7,7 @@ import type { Geometry } from '../../core/geometry';
 import type { IntervalUnit, VisibilityMap } from '../lines/trend-line';
 import { PriceNotePaneView } from './price-note-pane-view';
 
-export const PRICE_NOTE_FONT = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+export const PRICE_NOTE_FONT = defaultFontFamily;
 
 export interface PriceNoteOptions extends DrawingOptions {
   /** Optional caption drawn along the line. */

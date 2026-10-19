@@ -1,4 +1,5 @@
 import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
+import { defaultFontFamily as FONT_FAMILY } from '../../../helpers/make-font';
 import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
 import { drawControlPoints } from '../../rendering/canvas-utils';
@@ -6,7 +7,6 @@ import type { GannSquare } from './gann-square';
 
 const HANDLE_COLOR = '#2962FF';
 const LABEL_COLOR = '#787B86';
-const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
 const LABEL_GAP_X = 15;
 const LABEL_GAP_ABOVE = 14;
 const LABEL_GAP_BELOW = 16;

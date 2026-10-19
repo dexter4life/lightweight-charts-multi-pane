@@ -1,5 +1,6 @@
 import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
 
+import { defaultFontFamily as FONT_FAMILY } from '../../../helpers/make-font';
 import { Drawing } from '../../core/drawing';
 import type { Geometry, LineGeometry } from '../../core/geometry';
 import type { Anchor, ControlPoint, DrawingOptions, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
@@ -98,7 +99,6 @@ export const GANN_LABEL = {
 };
 
 const HIT_THRESHOLD = 3;
-const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
 
 let measureCtx: CanvasRenderingContext2D | null | undefined;
 function textWidth(text: string, size: number): number {

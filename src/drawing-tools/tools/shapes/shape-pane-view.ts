@@ -1,10 +1,10 @@
 import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
+import { defaultFontFamily as FONT_FAMILY } from '../../../helpers/make-font';
 import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
 import { applyStyle } from '../../rendering/canvas-utils';
 import type { ShapeBase } from './shape-base';
 
-const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
 const HANDLE_COLOR = '#2962FF';
 
 /** The fill tints the candles, as in the reference, so both layers draw above the series. */

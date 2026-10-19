@@ -1,10 +1,10 @@
-import type { IPrimitivePaneView, IPrimitivePaneRenderer } from '../../../model/ipane-primitive';
 import type { CanvasRenderingTarget2D, BitmapCoordinatesRenderingScope } from 'fancy-canvas';
+import { defaultFontFamily as FONT_FAMILY } from '../../../helpers/make-font';
+import type { IPrimitivePaneView, IPrimitivePaneRenderer } from '../../../model/ipane-primitive';
 
 import type { HorizontalLine } from './horizontal-line';
 import { applyStyle, drawLine } from '../../rendering/canvas-utils';
 
-const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
 const TEXT_GAP = 4;
 const TEXT_EDGE = 6;
 const HANDLE = 10;

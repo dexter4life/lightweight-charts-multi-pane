@@ -2,6 +2,7 @@ import type {
   BitmapCoordinatesRenderingScope,
   CanvasRenderingTarget2D,
 } from 'fancy-canvas';
+import { defaultFontFamily as FONT_FAMILY } from '../../../helpers/make-font';
 import type {
   IPrimitivePaneRenderer,
   IPrimitivePaneView,
@@ -12,7 +13,6 @@ import type { Point, Viewport } from '../../core/types';
 import { applyStyle, drawControlPoints, drawLabel, drawLine, formatPrice } from '../../rendering/canvas-utils';
 import type { TrendLine } from './trend-line';
 
-const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
 const TEXT_GAP = 4;
 const STATS_ROW = 28;
 const STATS_PAD = 5;

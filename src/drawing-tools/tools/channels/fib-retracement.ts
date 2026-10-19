@@ -1,5 +1,5 @@
+import { defaultFontFamily as FONT_FAMILY } from '../../../helpers/make-font';
 import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
-
 import { Drawing } from '../../core/drawing';
 import type { Geometry, LineGeometry } from '../../core/geometry';
 import type { Anchor, DrawingOptions, DrawingStyle, IDrawing, Point, Viewport } from '../../core/types';
@@ -112,7 +112,6 @@ export interface FibLabelItem {
 
 const LABEL_EDGE = 7;
 const LABEL_GAP = 4;
-const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
 let measureCtx: CanvasRenderingContext2D | null = null;
 
 export function measureText(text: string, size: number): number {

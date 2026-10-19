@@ -1,10 +1,11 @@
 import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
+import { defaultFontFamily } from '../../../helpers/make-font';
 import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
 import { applyStyle, drawControlPoints, drawLine } from '../../rendering/canvas-utils';
 import type { XABCDPattern } from './xabcd-pattern';
 
-export const PATTERN_LABEL_FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+export const PATTERN_LABEL_FONT_FAMILY = defaultFontFamily;
 const LABEL_PAD_X = 5;
 const LABEL_PAD_Y = 4;
 const LABEL_RADIUS = 4;

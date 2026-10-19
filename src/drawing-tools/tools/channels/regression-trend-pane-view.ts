@@ -1,12 +1,13 @@
-import type { IPrimitivePaneView, IPrimitivePaneRenderer } from '../../../model/ipane-primitive';
 import type { CanvasRenderingTarget2D, BitmapCoordinatesRenderingScope } from 'fancy-canvas';
+import { defaultFontFamily } from '../../../helpers/make-font';
+import type { IPrimitivePaneView, IPrimitivePaneRenderer } from '../../../model/ipane-primitive';
 
 import type { Point } from '../../core/types';
 import type { RegressionTrend } from './regression-trend';
 import { drawLine } from '../../rendering/canvas-utils';
 
 const HANDLE_STROKE = '#2962FF';
-const LABEL_FONT = "14px -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+const LABEL_FONT = `14px ${defaultFontFamily}`;
 
 /** '#rrggbb', '#rrggbbaa' or 'rgb(a)(...)' to its opaque RGB triplet. */
 function rgbOf(color: string): [number, number, number] {

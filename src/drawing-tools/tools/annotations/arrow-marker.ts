@@ -1,3 +1,4 @@
+import { defaultFontFamily } from '../../../helpers/make-font';
 import type { IPrimitivePaneView } from '../../../model/ipane-primitive';
 
 import { Drawing } from '../../core/drawing';
@@ -8,7 +9,7 @@ import { ArrowMarkerPaneView } from './arrow-marker-pane-view';
 
 export type ArrowDirection = 'up' | 'down' | 'left' | 'right';
 
-export const ARROW_MARKER_FONT = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
+export const ARROW_MARKER_FONT = defaultFontFamily;
 
 export interface ArrowMarkerOptions extends DrawingOptions {
   backgroundColor?: string;

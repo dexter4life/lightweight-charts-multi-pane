@@ -1,11 +1,11 @@
 import type { BitmapCoordinatesRenderingScope, CanvasRenderingTarget2D } from 'fancy-canvas';
+import { defaultFontFamily as FONT_FAMILY } from '../../../helpers/make-font';
 import type { IPrimitivePaneRenderer, IPrimitivePaneView } from '../../../model/ipane-primitive';
 
 import { drawControlPoints } from '../../rendering/canvas-utils';
 import type { FibSpeedFan } from './fib-speed-fan';
 
 const HANDLE_COLOR = '#2962FF';
-const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif";
 const FONT_SIZE = 12;
 const LABEL_GAP = 10;
 
