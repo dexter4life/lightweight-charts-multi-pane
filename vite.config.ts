@@ -18,6 +18,8 @@ export default defineConfig(({ mode }) => ({
     },
     dedupe: ["react", "react-dom"],
   },
+  // The package root also holds examples, docs and a storybook build with their own HTML.
+  optimizeDeps: { entries: ["index.html"] },
   // Keep the app build out of dist/, which holds the library bundle.
   build: { outDir: "dist-app" },
   server: { port: 5180, host: true, fs: { allow: ["../.."] } },
