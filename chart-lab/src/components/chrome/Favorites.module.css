@@ -1,0 +1,50 @@
+.fav-tb {
+  position: absolute;
+  z-index: 20;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  background: var(--lab-pop);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px var(--lab-shadow-sm), 0 0 0 1px var(--lab-ring), 0 4px 16px var(--lab-shadow-sm);
+  color: var(--lab-ink);
+  user-select: none;
+}
+
+.fav-grip {
+  width: 24px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lab-text-off);
+  cursor: grab;
+}
+
+.fav-grip svg {
+  width: 22px;
+  height: 22px;
+}
+
+.fav-btn {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--lab-ink);
+}
+
+.fav-btn svg {
+  width: 28px;
+  height: 28px;
+}
+
+.fav-btn:hover {
+  background: var(--lab-hover);
+}
+
+.active {
+  color: #2962ff;
+}

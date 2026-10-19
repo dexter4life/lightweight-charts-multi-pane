@@ -1,0 +1,11 @@
+/* Pane buttons follow the chart background rather than the page, like the legend. */
+/* Shown while the pointer is anywhere over the pane's row, axes included. */
+.bar { --pc-bg: #fff; --pc-border: #ebebeb; --pc-ink: #131722; --pc-hover: #f2f3f5; --pc-press: #ebebeb; --pc-on-bg: #2b2e38; --pc-on-ink: #fff; --pc-on-hover: #3d414c; position: absolute; top: 4px; right: 4px; display: flex; flex-wrap: nowrap; column-gap: 4px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .4s, visibility .4s; }
+:global(tr):hover > :global(td) .bar, .bar:hover, .bar:focus-within { opacity: 1; visibility: visible; pointer-events: auto; }
+.bar.dark { --pc-bg: #131722; --pc-border: #434651; --pc-ink: #d1d4dc; --pc-hover: #2b2e38; --pc-press: #363a45; --pc-on-bg: #f0f3fa; --pc-on-ink: #131722; --pc-on-hover: #d1d4dc; }
+.button { position: relative; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; box-sizing: border-box; width: 24px; height: 24px; padding: 0; overflow: hidden; border: 1px solid var(--pc-border); border-radius: 4px; background: var(--pc-bg); color: var(--pc-ink); cursor: default; }
+.button:hover { background: var(--pc-hover); }
+.button:active { background: var(--pc-press); }
+.button svg { width: 15px; height: 15px; }
+.active, .active:active { border-width: 0; background: var(--pc-on-bg); color: var(--pc-on-ink); }
+.active:hover { background: var(--pc-on-hover); }

@@ -1,0 +1,48 @@
+.bb-left,
+.bb-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bb-btn.bb-btn {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--lab-ink);
+  border-radius: 4px;
+}
+
+.bb-btn.bb-btn:hover {
+  background: var(--lab-hover);
+}
+
+.bb-btn:focus {
+  outline: none;
+}
+
+.bb-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--lab-border);
+  margin: 0 6px;
+}
+
+.bb-btn.on {
+  background: var(--lab-hover);
+}
+
+.bb-btn.active {
+  color: var(--blue);
+}
+
+.tz-menu {
+  max-height: min(560px, calc(100vh - 80px));
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.grow {
+  flex: 1;
+}

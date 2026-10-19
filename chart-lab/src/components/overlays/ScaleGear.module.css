@@ -1,0 +1,13 @@
+.scGear { position: absolute; right: 0; bottom: 0; z-index: 4; display: flex; align-items: center; justify-content: center; color: var(--lab-ink); }
+.left { right: auto; left: 0; }
+.scGear:hover, .on { background: var(--lab-border); }
+.scMenu { position: fixed; z-index: 1000; width: 270px; box-sizing: border-box; padding: 6px 0; background: var(--lab-pop); border-radius: 3px; box-shadow: 0 2px 4px var(--lab-shadow); color: var(--text); font-size: 14px; user-select: none; }
+.scItem { display: flex; align-items: center; height: 32px; cursor: pointer; white-space: nowrap; }
+.scItem:hover { background: var(--lab-hover); }
+.off { color: var(--lab-text-hint); cursor: default; }
+.off:hover { background: none; }
+.scCheck { width: 36px; display: inline-flex; justify-content: center; flex: none; color: var(--text); }
+.scLabel { flex: 1; }
+.scKey { padding-right: 14px; color: var(--lab-text-hint); }
+.scChev { padding-right: 14px; display: inline-flex; color: var(--text); }
+.scSep { height: 1px; margin: 6px 0; background: var(--lab-border); }

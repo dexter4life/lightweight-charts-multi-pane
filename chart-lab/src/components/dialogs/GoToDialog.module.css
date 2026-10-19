@@ -1,0 +1,347 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  color: var(--text);
+}
+
+.dialog {
+  width: 302px;
+  height: 568px;
+  background: var(--lab-pop);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px var(--lab-shadow), 0 0 1px var(--lab-ring);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  font-size: 14px;
+}
+
+.dialog button,
+.dialog input {
+  font-family: inherit;
+  color: inherit;
+}
+
+.dialog button {
+  cursor: pointer;
+}
+
+.head {
+  position: relative;
+  height: 68px;
+  flex: none;
+  cursor: grab;
+}
+
+.heading {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 34px;
+  padding: 17px 0 17px 20px;
+  box-sizing: content-box;
+  height: 34px;
+}
+
+.close {
+  position: absolute;
+  right: 17px;
+  top: 17px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close:hover {
+  background: var(--lab-hover);
+}
+
+.tabs {
+  height: 35px;
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--lab-border);
+  position: relative;
+}
+
+.tab {
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+  padding: 0 14px 14px;
+  height: 33px;
+  position: relative;
+  color: var(--text);
+}
+
+.tab:hover {
+  color: #2962ff;
+}
+
+.tab.on {
+  color: #2962ff;
+}
+
+.tab.on::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: -1px;
+  height: 4px;
+  background: #2962ff;
+}
+
+.body {
+  flex: 1;
+  padding-top: 16px;
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  padding: 0 20px 16px;
+  height: 34px;
+  box-sizing: content-box;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  box-sizing: border-box;
+  border: 1px solid var(--lab-border-3);
+  border-radius: 4px;
+  background: var(--bg);
+  padding-right: 8px;
+  color: var(--text);
+}
+
+.field.focus {
+  border-color: #2962ff;
+  box-shadow: 0 0 0 1px #2962ff;
+}
+
+.date {
+  width: 150px;
+}
+
+.time {
+  width: 100px;
+}
+
+.off {
+  background: var(--lab-hover);
+  color: var(--lab-text-off);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 14px;
+  padding: 0 2px 0 7px;
+}
+
+.input:disabled {
+  color: var(--lab-text-off);
+}
+
+.icon {
+  display: flex;
+  color: var(--lab-text-muted);
+}
+
+.off .icon {
+  color: var(--lab-text-off);
+}
+
+.calendar {
+  margin: 0 8px;
+  padding: 1px 12px 15px;
+}
+
+.calendarHead {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav {
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+}
+
+.nav:hover:not(:disabled) {
+  background: var(--lab-hover);
+}
+
+.nav:disabled {
+  color: var(--lab-text-off);
+  cursor: default;
+}
+
+.calendarTitle {
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 16px;
+  padding: 0 11px;
+}
+
+.calendarTitle:hover:not(:disabled) {
+  background: var(--lab-hover);
+}
+
+.calendarTitle:disabled {
+  cursor: default;
+}
+
+.weekdays {
+  margin-top: 12px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--lab-tint-2);
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  align-items: center;
+  text-align: center;
+  font-size: 14px;
+  color: var(--lab-text-muted);
+}
+
+.gridLabel {
+  display: flex;
+  padding-left: 10px;
+  justify-content: flex-start;
+}
+
+.weeks {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, 34px);
+  gap: 4px;
+}
+
+.day,
+.cell {
+  height: 34px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 16px;
+  padding: 0;
+}
+
+.gap {
+  pointer-events: none;
+}
+
+.day:hover:not(:disabled):not(.sel),
+.cell:hover:not(:disabled):not(.sel) {
+  background: var(--lab-hover);
+}
+
+.day:disabled,
+.cell:disabled {
+  color: var(--lab-text-off);
+  cursor: default;
+}
+
+.mid {
+  background: light-dark(#e3effd, #1d2d52);
+  color: #2962ff;
+}
+
+.sel,
+.edge {
+  background: #2962ff;
+  border-color: #2962ff;
+  color: #fff;
+}
+
+.edge {
+  background: light-dark(#e3effd, #1d2d52);
+  border-color: transparent;
+  color: #2962ff;
+}
+
+.grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.foot {
+  height: 67px;
+  flex: none;
+  box-sizing: border-box;
+  border-top: 1px solid var(--lab-border);
+  padding: 16px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.button {
+  height: 34px;
+  border-radius: 8px;
+  font-size: 16px;
+  padding: 0 15px;
+  border: 1px solid #2962ff;
+}
+
+.out {
+  background: var(--bg);
+  color: #2962ff;
+}
+
+.fill {
+  background: #2962ff;
+  color: #fff;
+}
+
+.out:hover {
+  background: var(--lab-hover-blue);
+}
+
+.fill:hover {
+  background: #1e53e5;
+}
+
+:global(.dragging),
+:global(.dragging *) {
+  cursor: grabbing !important;
+}

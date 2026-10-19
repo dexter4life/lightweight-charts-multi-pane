@@ -1,0 +1,52 @@
+.sd-check {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sd-check input {
+  position: absolute;
+  opacity: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.sd-box {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--lab-border-2);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  background: var(--bg);
+}
+
+.sd-box svg {
+  opacity: 0;
+}
+
+.sd-check input:checked + .sd-box {
+  background: #2962ff;
+  border-color: #2962ff;
+}
+
+.sd-check input:checked + .sd-box svg {
+  opacity: 1;
+}
+
+.sd-check input:focus-visible + .sd-box {
+  box-shadow: 0 0 0 2px rgba(41, 98, 255, 0.4);
+}
+
+.sd-check input:disabled + .sd-box {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.sd-cl {
+  margin-left: 8px;
+}

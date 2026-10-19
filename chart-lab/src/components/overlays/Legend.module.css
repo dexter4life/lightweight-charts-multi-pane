@@ -1,0 +1,110 @@
+/*
+ * Each pane renders its own legend inside the pane's control container, so it is positioned by the pane and never by script.
+ * The legend follows the chart background, not the page, so it re-declares the tokens it uses with plain values
+ * (light-dark() is resolved against the page and cannot be flipped per element). The popups it opens are portaled
+ * out of it and keep following the page theme.
+ */
+.legend { --text: #1f1f1f; --bg: #fff; --lab-border: #e0e3eb; --lab-ink: #131722; --lab-hover: #f0f3fa; --lab-text-2: #6a6d78; --lg-bg: rgba(255,255,255,.5); --lg-ibg: rgba(255,255,255,.5); position: absolute; left: 4px; top: 4px; z-index: 3; pointer-events: none; font: 13px/22px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif; color: var(--text); white-space: nowrap; }
+.dark { --text: #d1d1d1; --bg: #2a2a2a; --lab-border: #3a3a3a; --lab-ink: #d1d1d1; --lab-hover: #333333; --lab-text-2: #b0b3bb; }
+.lgRow { display: flex; align-items: center; height: 24px; }
+.lgInd { margin-top: 1px; height: 22px; }
+.lgP { display: inline-flex; font-size: 14px; }
+.lgTitle { position: relative; z-index: 1; font-size: 16px; pointer-events: auto; cursor: default; }
+.lgTitle .lgDim { font-size: inherit; }
+.lgInd .lgTitle { font-size: 13px; }
+.lgPill, .lgVpill { position: relative; display: flex; align-items: center; height: 24px; box-sizing: border-box; padding: 0 5px; pointer-events: auto; }
+.lgVpill { height: 22px; padding: 0 5px 0 5.5px; }
+.sel { }
+.hid { }
+.off { }
+.lgBox { position: absolute; inset: 0; box-sizing: border-box; border: 1px solid transparent; border-radius: 4px; pointer-events: none; }
+.lgPill:hover .lgBox, .lgPill.sel .lgBox, .lgVpill:hover .lgBox { background: var(--bg); border-color: var(--lab-border); }
+.lgPill:hover .lgBox, .lgPill.sel .lgBox { right: -57px; }
+.lgVpill:hover .lgBox { right: -85px; }
+.lgPill.sel .lgBox { border-color: #2962ff; }
+.dark .lgPill:hover .lgBox, .dark .lgPill.sel .lgBox, .dark .lgVpill:hover .lgBox { background: #1e222d; }
+.hid .lgTitle { opacity: .55; }
+.lgBtns { position: absolute; z-index: 2; left: 100%; top: 0; height: 24px; display: none; border-radius: 0 4px 4px 0; background: var(--bg); box-sizing: border-box; border: 1px solid var(--lab-border); border-left: 0; }
+.lgPill.sel .lgBtns { border-color: #2962ff; }
+.lgPill:hover .lgBtns, .lgPill.sel .lgBtns, .lgVpill:hover .lgBtns { display: flex; }
+.lgVbtns { height: 22px; }
+.lgB { width: 28px; height: 100%; padding: 0; border: 0; background: transparent; color: var(--lab-ink); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.lgB:last-child { border-radius: 0 3px 3px 0; }
+.lgB:hover { background: var(--lab-hover); }
+.lgB svg { width: 28px; height: 28px; }
+.lgB[data-act="eye"] svg, .lgB[data-act="vhide"] svg, .lgB[data-act="vset"] svg, .lgB[data-act="vrm"] svg { width: 24px; height: 24px; }
+.lgLive { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; background: rgba(8,153,129,.15); align-items: center; justify-content: center; margin: 0 12px 0 11px; box-shadow: 0 0 0 0 transparent; pointer-events: auto; cursor: pointer; }
+.lgLive i { width: 8px; height: 8px; border-radius: 50%; background: #089981; }
+.lgDim { color: var(--lab-text-2); }
+.lgOhlc { display: inline-flex; gap: 8px; font-size: 14px; background: var(--lg-bg); border-radius: 0 4px 4px 0; }
+.lgIvals { margin-left: 9px; font-size: 14px; background: var(--lg-ibg); }
+.lgPop { position: fixed; z-index: 1000; box-sizing: border-box; width: 267px; padding: 18px 14px 18.5px; display: flex; gap: 6px; background: var(--lab-pop); border-radius: 6px; box-shadow: 0 2px 4px var(--lab-shadow), 0 0 1px var(--lab-ring); color: var(--text); font: 14px/21px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif; }
+.lgPopIco { flex: none; width: 18px; height: 18px; margin-top: 2px; border-radius: 50%; background: rgba(8,153,129,.15); display: inline-flex; align-items: center; justify-content: center; }
+.lgPopIco i { width: 8px; height: 8px; border-radius: 50%; background: #089981; }
+.lgPopBody { width: 215px; }
+.lgPopTitle { font-size: 16px; font-weight: 700; line-height: 22px; color: #089981; }
+.lgPopText { margin: 4px 0 12px; font-size: 14px; line-height: 21px; }
+.lgPopWidget { width: 200px; }
+.lgPopDay { display: flex; align-items: center; height: 14.5px; }
+.lgPopWd { width: 30px; font-size: 10px; line-height: 14px; padding-top: 3px; }
+.lgPopSeg { position: relative; width: 170px; height: 7px; border-radius: 4px; background: #22ab94; }
+.lgPopNow { position: absolute; top: -3.5px; width: 1px; height: 13.5px; background: var(--text); }
+.lgPopMarks { position: relative; width: 170px; height: 16px; margin: 3px 0 0 30px; font-size: 11px; line-height: 16px; color: var(--lab-text-hint); }
+.lgPopMarks span { position: absolute; top: 0; width: 31px; margin-left: -15.5px; text-align: center; }
+.lgPopMarks span:last-child { left: 170px; }
+.lgPopTz { margin-top: 0; margin-left: 0; padding-top: 4px; text-align: center; font-size: 11px; line-height: 18px; color: var(--lab-text-muted); }
+.lgMenu { position: fixed; z-index: 1000; box-sizing: border-box; width: 230.7px; padding: 6px 0; background: var(--lab-pop); border-radius: 6px; box-shadow: 0 2px 4px var(--lab-shadow), 0 0 1px var(--lab-ring); color: var(--text); font-size: 14px; user-select: none; }
+.lgMi { display: flex; align-items: center; height: 32px; padding-right: 8px; cursor: pointer; white-space: nowrap; }
+.lgMi:hover { background: var(--lab-hover); }
+.off { cursor: default; }
+.off .lgMiL, .off .lgMiIco { color: var(--lab-text-hint); }
+.lgMiIco { flex: none; width: 28px; height: 28px; margin: 0 6px 0 8px; display: inline-flex; }
+.lgMiIco svg { width: 28px; height: 28px; }
+.lgMiL { flex: 1; }
+.lgMiK, .lgMiC { color: var(--lab-text-hint); display: inline-flex; padding-right: 4px; }
+.lgMi:not(.off) .lgMiC { color: var(--text); }
+.lgMsep { height: 1px; margin: 6px 0; background: var(--lab-border); }
+
+/* Reference layout: boxed title row, OHLC on its own line, SELL / BUY row. */
+.lgRow { height: 30px; }
+.lgInd { margin-top: 4px; }
+.lgPill { height: 30px; gap: 8px; padding: 0 4px 0 6px; border: 1px solid transparent; border-radius: 4px; background: transparent; }
+.lgPill:hover { background: var(--bg); border-color: var(--lab-border); }
+.lgPill.sel { background: var(--bg); border-color: #2962ff; }
+.lgBox { display: none; }
+.lgVpill { height: 26px; gap: 6px; padding: 0 2px 0 6px; border: 1px solid transparent; border-radius: 4px; background: transparent; }
+.lgVpill:hover { background: var(--bg); border-color: var(--lab-border); }
+.lgVpill.sel { background: var(--bg); border-color: #2962ff; }
+.lgVpill .lgBtns { position: static; display: none; height: auto; border: 0; background: transparent; border-radius: 0; }
+.lgVpill:hover .lgBtns, .lgVpill.sel .lgBtns { display: flex; }
+.lgVpill .lgB { width: 24px; height: 24px; }
+.lgVpill .lgB svg, .lgVpill .lgB[data-act] svg { width: 24px; height: 24px; }
+.lgIcon { display: inline-flex; align-items: center; flex: none; }
+.lgPill .lgTitle { font-size: 18px; }
+.lgPill .lgLive { margin: 0; width: 16px; height: 16px; background: transparent; }
+.lgPill .lgLive i { width: 10px; height: 10px; border-radius: 2px; background: #c4c4c4; }
+.lgPill .lgBtns { position: static; display: flex; height: auto; border: 0; background: transparent; border-radius: 0; }
+.lgPill .lgB { width: 26px; height: 26px; }
+.lgPill .lgB svg { width: 26px; height: 26px; }
+.lgPill .lgB[data-act="eye"] { display: none; }
+.lgPill:hover .lgB[data-act="eye"], .lgPill.sel .lgB[data-act="eye"] { display: flex; }
+.lgOhlc { gap: 10px; padding: 0 4px; font-size: 18px; font-weight: 400; background: transparent; }
+.lgOhlc .lgP { font-size: 18px; gap: 3px; }
+.lgOhlc .lgP > span:first-child { font-weight: 700; color: var(--text); }
+.lgTrade { gap: 10px; margin-top: 6px; height: 40px; pointer-events: auto; }
+.legend .lgTb { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; min-width: 54px; height: 36px; padding: 0 8px; border: 1px solid; border-radius: 4px; background: var(--bg); font: inherit; line-height: 1.15; cursor: pointer; }
+.legend .lgTb span { font-size: 15px; font-weight: 500; }
+.legend .lgTb small { font-size: 12px; letter-spacing: .04em; }
+.legend .lgSell { color: #f23645; border-color: #f23645; }
+.legend .lgBuy { color: #2962ff; border-color: #2962ff; }
+.lgSpread { font-size: 13px; color: var(--text); }
+
+.hid .lgTitle { opacity: .55; }
+
+.lgEyeOff { display: inline-flex; }
+.lgEyeOff .lgB { width: 24px; height: 24px; }
+.lgEyeOff .lgB svg { width: 24px; height: 24px; }
+.lgVpill .lgB[data-act="vsrc"] svg, .lgVpill .lgB[data-act="imore"] svg { width: 24px; height: 24px; }
+
+/* A collapsed pane only has room for one legend row. */
+.lgCollapsed { max-height: 24px; overflow: hidden; }

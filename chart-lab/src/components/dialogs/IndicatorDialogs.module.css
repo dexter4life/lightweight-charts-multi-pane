@@ -1,0 +1,19 @@
+.overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif; color: var(--text); }
+.dialog { width: 560px; height: 520px; max-height: 90vh; background: var(--lab-pop); border-radius: 6px; box-shadow: 0 2px 4px var(--lab-shadow), 0 0 1px var(--lab-ring); display: flex; flex-direction: column; position: relative; font-size: 14px; }
+.small { width: 360px; height: auto; }
+.dialog button, .dialog input, .dialog select { font-family: inherit; color: inherit; }
+.head { position: relative; flex: none; height: 64px; cursor: grab; }
+.heading { font-size: 20px; font-weight: 600; line-height: 34px; padding: 15px 0 15px 20px; }
+.close { position: absolute; right: 14px; top: 15px; width: 34px; height: 34px; border: 0; background: transparent; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.close:hover { background: var(--lab-hover); }
+.searchRow { flex: none; display: flex; align-items: center; gap: 8px; margin: 0 20px 8px; height: 40px; padding: 0 12px; border: 1px solid var(--lab-border); border-radius: 8px; box-sizing: border-box; }
+.searchRow:focus-within { border-color: #2962ff; box-shadow: 0 0 0 1px #2962ff; }
+.searchRow svg { width: 20px; height: 20px; flex: none; color: var(--lab-text-2); }
+.search { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 16px; }
+.list { flex: 1; overflow: auto; border-top: 1px solid var(--lab-border); }
+.item { display: flex; align-items: center; gap: 12px; width: 100%; height: 44px; padding: 0 20px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.item:hover { background: var(--lab-hover); }
+.item b { width: 56px; font-weight: 600; }
+.item span { flex: 1; color: var(--text); }
+.item small { color: var(--lab-text-2); font-size: 13px; }
+.empty { padding: 32px 20px; text-align: center; color: var(--lab-text-2); }

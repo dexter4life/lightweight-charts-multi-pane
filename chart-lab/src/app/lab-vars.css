@@ -1,0 +1,52 @@
+/*
+ * Theme tokens. Every colour is a `light-dark()` pair, so the UI follows the `color-scheme` of the page
+ * (the host sets it on <html>; standalone, lab-reset.css opts in to the OS preference). Canvas colours that
+ * CSS cannot reach live in ../theme.ts and must stay in step with the dark values here.
+ *
+ * The tokens are also declared on `body`: the host's PostCSS turns light-dark() into
+ * `[data-ui-color-scheme='dark'] <selector>`, which can never match <html> itself.
+ */
+:root,
+body {
+  --bg: light-dark(#ffffff, #1f1f1f);
+  --lab-grey: light-dark(#edeaea, #141414);
+  --gutter: light-dark(#e1e3ea, #141414);
+  --text: light-dark(#1f1f1f, #d1d1d1);
+  --lab-ink: light-dark(#131722, #d1d1d1);
+  --lab-muted: #8f8f8f;
+  --blue: #2962ff;
+  --font: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+
+  /* Floating surfaces (menus, dialogs, popovers) sit one step above the chart card. */
+  --lab-pop: light-dark(#ffffff, #262626);
+
+  --lab-hover: light-dark(#f0f3fa, #333333);
+  --lab-hover-2: light-dark(#f5f5f5, #2e2e2e);
+  --lab-hover-blue: light-dark(#f0f3ff, #1c2640);
+  --lab-tint: light-dark(#eff2fb, #2a2a2a);
+  --lab-tint-2: light-dark(#f8f9fd, #232323);
+
+  --lab-border: light-dark(#e0e3eb, #3a3a3a);
+  --lab-border-2: light-dark(#c3c6cf, #4a4a4a);
+  --lab-border-3: light-dark(#d1d4dc, #454545);
+
+  --lab-text-2: light-dark(#6a6d78, #b0b3bb);
+  --lab-text-muted: light-dark(#787b86, #9a9da6);
+  --lab-text-hint: light-dark(#9598a1, #7f828b);
+  --lab-text-off: light-dark(#b2b5be, #5b5d65);
+
+  --lab-shadow-lg: light-dark(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.7));
+  --lab-shadow: light-dark(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.6));
+  --lab-shadow-sm: light-dark(rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.5));
+  --lab-ring: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.1));
+}
+
+/* Dialog drag affordance, driven by attributes set by makeDraggable and the dialog headers. */
+[data-drag-handle] {
+  cursor: grab;
+}
+
+[data-dragging],
+[data-dragging] * {
+  cursor: grabbing !important;
+}

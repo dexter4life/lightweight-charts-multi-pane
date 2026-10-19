@@ -1,0 +1,28 @@
+.sd-select {
+  height: 34px;
+  border: 1px solid var(--lab-border);
+  border-radius: 4px;
+  background: var(--bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 12px;
+  font-size: 14px;
+}
+
+.sd-select:hover:not(:disabled) {
+  background: var(--lab-hover);
+}
+
+.sd-select:disabled {
+  opacity: 1;
+  cursor: default;
+  background: var(--lab-tint);
+  border-color: var(--lab-border-3);
+  color: var(--lab-text-off);
+}
+
+.sd-select svg {
+  color: var(--lab-text-muted);
+  flex: none;
+}

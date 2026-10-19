@@ -1,0 +1,26 @@
+.ftb { position: absolute; z-index: 6; height: 38px; width: var(--ftb-w, 322px); background: var(--lab-pop); border-radius: 6px; box-shadow: 0 2px 4px var(--lab-shadow-sm), 0 0 0 1px var(--lab-ring), 0 4px 16px var(--lab-shadow-sm); opacity: 0; pointer-events: none; transition: opacity .12s; color: var(--lab-ink); }
+.on { opacity: 1; pointer-events: auto; }
+.slot { position: absolute; top: 0; height: 38px; display: flex; align-items: center; justify-content: center; border: 0; background: transparent; padding: 0; color: inherit; cursor: pointer; }
+.ftbBtn { }
+.ftbGrip { color: var(--lab-text-off); cursor: grab; }
+.ftbGrip svg { width: 22px; height: 22px; }
+.ftbBtn:hover { background: var(--lab-hover) !important; border-radius: 4px; }
+.ftbBtn svg { width: 28px; height: 28px; }
+.ftbPen { display: flex; margin-top: -4px; }
+.ftbUl { position: absolute; left: 7px; right: 7px; bottom: 6px; height: 3.5px; border-radius: 2px; background: #2962ff; }
+.widthSlot { gap: 8px; }
+.ftbW { display: block; width: 18px; background: var(--lab-ink); }
+.ftbWt { font: 14px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, sans-serif; }
+.ftbD { display: block; width: 20px; height: 0; border-top: 1.5px solid var(--lab-ink); }
+.ftbMenu { display: none; position: absolute; top: 42px; width: 120px; background: var(--lab-pop); border-radius: 6px; padding: 4px 0; box-shadow: 0 2px 12px var(--lab-shadow); }
+.menuOpen { display: block; }
+.ftbMenu button { display: flex; align-items: center; gap: 10px; width: 100%; height: 32px; padding: 0 12px; border: 0; background: transparent; font: 13px -apple-system, BlinkMacSystemFont, sans-serif; cursor: pointer; }
+.ftbMenu button:hover { background: var(--lab-hover); }
+.ftbFs { font: 14px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, sans-serif; }
+.sizes { top: 40px; width: 50px; padding: 0; border-radius: 4px; }
+.sizes button { justify-content: center; font-size: 14px; color: var(--lab-ink); padding: 0; }
+.sizes button.on { background: #2962ff; color: #fff; }
+.ftbMenu .ftbW { width: 20px; }
+.ftbMenu .ftbD { width: 20px; }
+.mixed[data-slot="width"] .ftbW { height: 12px !important; width: 20px; background: repeating-linear-gradient(var(--lab-ink) 0 2px, transparent 2px 5px); }
+.mixed[data-slot="width"] .ftbWt { display: none; }

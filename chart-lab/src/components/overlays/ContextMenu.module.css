@@ -1,0 +1,15 @@
+.cm { position: fixed; z-index: 80; padding: 6px 0; background: var(--lab-pop); border-radius: 6px; box-shadow: 0 2px 4px var(--lab-shadow-sm), 0 0 0 1px var(--lab-ring); font: 14px/20px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif; color: var(--text); user-select: none; min-width: 200px; }
+.sub { min-width: 0; }
+.cmRow { display: flex; align-items: center; height: 32px; padding-right: 20px; white-space: nowrap; cursor: pointer; }
+.cmRow:hover:not(.dis), .hot { background: var(--lab-hover); }
+.dis { color: var(--lab-text-off); cursor: default; }
+.cmIco { display: flex; align-items: center; justify-content: center; width: 36px; height: 28px; flex: none; }
+.cmIco svg { width: 28px; height: 28px; }
+.cmLabel { flex: 1; padding-left: 6px; }
+.cmKey { margin-left: 24px; color: var(--lab-text-hint); }
+.cmArrow { display: flex; margin-left: 2px; transform: rotate(-90deg); }
+.cmArrow svg { width: 18px; height: 18px; }
+.cmSep { height: 13px; position: relative; }
+.cmSep::after { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 1px; background: var(--lab-border); }
+.noico .cmIco { display: none; }
+.noico .cmLabel { padding-left: 12px; }

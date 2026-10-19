@@ -1,0 +1,221 @@
+.pal {
+  position: fixed;
+  z-index: 1100;
+  width: 248px;
+  height: 374px;
+  background: var(--lab-pop);
+  border-radius: 3px;
+  box-shadow: 0 2px 4px var(--lab-shadow), 0 0 1px var(--lab-ring);
+  font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, sans-serif;
+  font-size: 14px;
+  color: var(--lab-ink);
+}
+
+.no-th {}
+
+.pal.no-th {
+  height: 304px;
+}
+
+.pal.has-dash {
+  height: 430px;
+}
+
+.pal-grid {
+  position: absolute;
+  left: 12px;
+  top: 15px;
+  display: grid;
+  grid-template-columns: repeat(10, 17px);
+  gap: 6px;
+}
+
+.pal-sw {
+  width: 17px;
+  height: 17px;
+  border: 0;
+  border-radius: 3px;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--lab-ring);
+}
+
+.sel {}
+
+.pal-sw.sel {
+  box-shadow: inset 0 0 0 1px var(--lab-shadow), 0 0 0 2px var(--lab-pop), 0 0 0 3px var(--lab-ink);
+}
+
+.pal-sep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 199px;
+  height: 1px;
+  background: var(--lab-border);
+}
+
+.pal-sep2 {
+  top: 239px;
+}
+
+.pal-plus {
+  position: absolute;
+  left: 12px;
+  top: 205px;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--lab-border);
+  border-radius: 4px;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pal-lbl {
+  position: absolute;
+  left: 12px;
+  font-size: 14px;
+  color: var(--lab-ink);
+}
+
+.pal-op {
+  top: 252px;
+}
+
+.pal-th {
+  top: 308px;
+}
+
+.pal-slider {
+  position: absolute;
+  left: 12px;
+  top: 282px;
+  width: 166px;
+  height: 16px;
+  cursor: pointer;
+  --c: #2962ff;
+}
+
+.pal-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 4px;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(to right, transparent, var(--c)), repeating-conic-gradient(#d1d4dc 0 25%, #fff 0 50%) 0 0 / 8px 8px;
+}
+
+.pal-thumb {
+  position: absolute;
+  top: 0;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #2962ff;
+  box-sizing: border-box;
+}
+
+.pal-pct {
+  position: absolute;
+  right: 12px;
+  top: 276px;
+  width: 47px;
+  height: 26px;
+  border: 1px solid var(--lab-border-2);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  gap: 2px;
+}
+
+.pal-pct input {
+  width: 24px;
+  border: 0;
+  outline: none;
+  font: inherit;
+  text-align: right;
+  background: transparent;
+  padding: 0;
+}
+
+.pal-pct span {
+  color: var(--lab-text-muted);
+  font-size: 13px;
+}
+
+.pal-widths {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 332px;
+  display: flex;
+  gap: 2px;
+}
+
+.pal-w {
+  flex: 1;
+  height: 30px;
+  border: 1px solid var(--lab-border);
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.pal-w i {
+  display: block;
+  width: 24px;
+  background: var(--lab-ink);
+}
+
+.pal-w.sel {
+  background: #2962ff;
+  border-color: #2962ff;
+}
+
+.pal-w.sel i {
+  background: #fff;
+}
+
+.pal-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  left: 20px;
+  top: 210px;
+  pointer-events: none;
+}
+
+.pal-ls {
+  top: 372px;
+}
+
+.pal-dashes {
+  top: 396px;
+}
+
+.pal-dashes .pal-w i {
+  height: 0;
+  background: none;
+  border-top: 2px var(--ls, solid) var(--lab-ink);
+}
+
+.pal-dashes .pal-w.sel i {
+  border-top-color: #fff;
+}
+
+.solid { --ls: solid; }
+.dashed { --ls: dashed; }
+.dotted { --ls: dotted; }

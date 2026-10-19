@@ -1,0 +1,227 @@
+.tb-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.tb-bottom {
+  margin-top: auto;
+}
+
+.tb-sep {
+  height: 1px;
+  background: var(--lab-border);
+  margin: 6px 8px;
+}
+
+.tb-item {
+  position: relative;
+  width: 58px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+.tb-btn {
+  width: 36px;
+  height: 34px;
+  margin-left: 11px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lab-ink);
+}
+
+.tb-btn svg {
+  width: 30px;
+  height: 30px;
+}
+
+.tb-btn:focus,
+.tb-arrow:focus,
+.fly-item:focus,
+.fly-star:focus {
+  outline: none;
+}
+
+.tb-btn:hover {
+  background: var(--lab-hover);
+}
+
+.tb-btn.active {
+  color: var(--blue);
+}
+
+.tb-arrow {
+  position: absolute;
+  right: 0;
+  top: 1px;
+  bottom: 1px;
+  width: 12px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--lab-ink);
+  background: var(--lab-hover);
+  border-radius: 4px 0 0 4px;
+  z-index: 1;
+}
+
+.tb-arrow svg {
+  width: 10px;
+  height: 10px;
+}
+
+.tb-item:hover .tb-arrow,
+.open .tb-arrow {
+  display: flex;
+}
+
+.open .tb-arrow svg {
+  transform: scaleX(-1);
+}
+
+.tb-item:hover > .tb-btn,
+.open > .tb-btn {
+  background: var(--lab-hover);
+}
+
+.tb-flyout {
+  position: fixed;
+  z-index: 60;
+  min-width: 120px;
+  padding: 6px 0;
+  overflow-y: auto;
+  background: var(--lab-pop);
+  border-radius: 0 6px 6px 6px;
+  box-shadow: 0 2px 4px var(--lab-shadow-sm), 0 0 0 1px var(--lab-ring);
+  font: 14px/20px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  color: var(--lab-ink);
+  user-select: none;
+}
+
+.tb-flyout:not(.fly-sm) {
+  min-width: 224px;
+}
+
+.fly-item {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 39px 0 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fly-sm .fly-item {
+  padding: 0 12px 0 8px;
+}
+
+.fly-plain .fly-item {
+  height: 32px;
+  padding: 2px 10px 2px 8px;
+}
+
+.fly-item:hover {
+  background: var(--lab-hover);
+}
+
+.fly-item.sel {
+  background: #2962ff;
+  color: #fff;
+}
+
+.fly-ico {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  margin-right: 2px;
+  flex: none;
+}
+
+.fly-ico svg {
+  width: 28px;
+  height: 28px;
+}
+
+.fly-sm .fly-ico {
+  margin-right: 8px;
+}
+
+.fly-label {
+  flex: none;
+}
+
+.fly-key {
+  margin-left: auto;
+  padding-left: 16px;
+  color: var(--lab-text-hint);
+}
+
+.sel .fly-key {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.fly-star {
+  display: flex;
+  visibility: hidden;
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 4px;
+  color: var(--lab-text-2);
+  align-items: center;
+  justify-content: center;
+}
+
+.fly-star svg {
+  width: 22px;
+  height: 22px;
+}
+
+.fly-item:hover .fly-star,
+.fly-star.on {
+  visibility: visible;
+}
+
+.has-key .fly-star {
+  margin-left: 26px;
+}
+
+.has-star .fly-key {
+  padding-left: 0;
+}
+
+.has-star .fly-label {
+  margin-right: 29px;
+}
+
+.has-key .fly-label {
+  margin-right: 0;
+}
+
+.has-star {
+  padding-right: 10px;
+}
+
+.fly-star:hover {
+  background: var(--lab-border);
+}
+
+.sel .fly-star {
+  color: #fff;
+}
+
+.sel .fly-star:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.fav-on {
+  background: #2962ff;
+  color: #fff;
+}
+
+.fav-on:hover {
+  background: #1e53e5;
+}
