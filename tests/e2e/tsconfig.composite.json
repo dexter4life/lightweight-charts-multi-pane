@@ -20,7 +20,18 @@
 		"./memleaks/**/*.ts",
 		"./interactions/**/*.ts",
 		"./helpers/**/*.ts",
-		"../../src/**/*.ts",
+		"../../src/index.ts",
+		"../../src/standalone.ts",
+		"../../src/api/**/*.ts",
+		"../../src/drawing-tools/**/*.ts",
+		"../../src/formatters/**/*.ts",
+		"../../src/gui/**/*.ts",
+		"../../src/helpers/**/*.ts",
+		"../../src/model/**/*.ts",
+		"../../src/plugins/**/*.ts",
+		"../../src/renderers/**/*.ts",
+		"../../src/typings/**/*.ts",
+		"../../src/views/**/*.ts",
 		"./*.ts"
 	]
 }

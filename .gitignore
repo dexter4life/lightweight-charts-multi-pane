@@ -24,6 +24,7 @@ npm-debug.log*
 # artifacts
 /lib/
 /dist/
+/dist-app/
 /src/**/*.js
 /src/**/*.d.ts
 /website/docs/api/
@@ -35,6 +36,7 @@ npm-debug.log*
 /website/versions.d.ts
 
 !/src/typings/**/*.d.ts
+!/src/vite-env.d.ts
 
 # graphics tests out data
 /tests/e2e/graphics/.gendata/

@@ -16,5 +16,20 @@
   },
   "include": [
     "src"
+  ],
+  "exclude": [
+    "src/index.ts",
+    "src/standalone.ts",
+    "src/api",
+    "src/drawing-tools",
+    "src/formatters",
+    "src/gui",
+    "src/helpers",
+    "src/model",
+    "src/plugins",
+    "src/renderers",
+    "src/stories",
+    "src/typings",
+    "src/views"
   ]
 }

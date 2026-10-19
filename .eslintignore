@@ -19,4 +19,30 @@
 /packages/create-lwc-plugin
 
 /debug
-/chart-lab
+
+# chart-lab app
+/vite.config.ts
+/src/anchors.ts
+/src/app
+/src/chart-settings.ts
+/src/chart-type.ts
+/src/cloud.ts
+/src/components
+/src/controller.ts
+/src/data
+/src/data.ts
+/src/fills.ts
+/src/indicator-defs.ts
+/src/indicator-math.ts
+/src/indicator-model.ts
+/src/indicators.ts
+/src/main.tsx
+/src/market.ts
+/src/panes.ts
+/src/scale.ts
+/src/stickers
+/src/symbols.ts
+/src/theme.ts
+/src/timezones.ts
+/src/vite-env.d.ts
+/src/volume-study.ts
