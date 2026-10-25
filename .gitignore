@@ -44,3 +44,6 @@ tests/e2e/coverage/.gendata
 
 # memleak log output
 tests/e2e/memleaks/.logs/
+
+# V8 compile cache (local dev)
+node-compile-cache/
